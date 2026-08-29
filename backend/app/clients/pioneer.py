@@ -107,6 +107,18 @@ _PLACEHOLDER = re.compile(
     r"|largest (institutional )?holder|institutional holders?|nominee)\b", re.I)
 
 
+def is_placeholder(name: str) -> bool:
+    """True when a string names a category or a data gap rather than an owner.
+
+    "Free float", "Treasury shares", "(Largest institutional holder — name
+    truncated in data)". Whether a string is one of these is a fact about the
+    scrape, not a judgement, so no model gets a vote — observed live, the encoder
+    called that last one a company at 0.60 and then a fund at 1.00.
+    """
+    n = (name or "").strip()
+    return bool(_NOT_ENTITY.match(n) or _PLACEHOLDER.search(n))
+
+
 def _heuristic(name: str, row: dict[str, Any]) -> dict[str, Any]:
     """Cheap, instant, and deliberately unwilling to guess.
 
@@ -213,9 +225,17 @@ class PioneerClient:
             *(self._infer(t) for t in texts), return_exceptions=True)
 
         out: list[dict[str, Any]] = []
-        for fb, res, text in zip(fallback, results, texts):
+        for name, fb, res, text in zip(names, fallback, results, texts):
             if isinstance(res, dict) and res.get("kind"):
                 res["text"] = text
+                # A placeholder is a fact about the *scrape*, not a judgement call,
+                # so no model gets a vote on it. Observed live: the encoder called
+                # "(Largest institutional holder — name truncated in data)" a
+                # company at 0.60, which put a non-existent entity mid-chain and
+                # spent a cold query asking for its shareholders.
+                if is_placeholder(name):
+                    res["kind"] = "not_an_entity"
+                    res["terminal"] = False
                 out.append(res)
             else:
                 fb = dict(fb)

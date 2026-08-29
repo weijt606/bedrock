@@ -24,10 +24,11 @@ spans are*; it never decides what is true.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Awaitable, Callable
 
 from ..clients.cala import CalaClient
-from ..clients.pioneer import PioneerClient
+from ..clients.pioneer import PioneerClient, is_placeholder
 from ..schemas import EntityKind, Gap, Layer
 from .base import source_of
 
@@ -72,11 +73,19 @@ class ReaderAgent:
         stakes = [e["text"] for e in got["entities"] if e["label"] == "stake"]
         dates = [e["text"] for e in got["entities"] if e["label"] == "date"]
 
+        # The extractor returns every span it recognises, which includes the
+        # subject itself, the same company under two spellings, and placeholders.
+        # A span is not a link in a chain; filter before promoting one to a Layer.
         layers: list[Layer] = []
+        seen: set[str] = {_key(subject)}
         for e in got["entities"]:
             kind = _KIND.get(e["label"])
             if kind is None:
                 continue
+            key = _key(e["text"])
+            if not key or key in seen or is_placeholder(e["text"]):
+                continue
+            seen.add(key)
             detail = [d for d in (
                 f"jurisdictions named in the same answer: {', '.join(jurisdictions[:4])}"
                 if jurisdictions else "",
@@ -92,6 +101,7 @@ class ReaderAgent:
                 detail=detail,
                 confidence=round(float(e.get("score") or 0.0), 2),
                 terminal=kind in _TERMINAL,
+                provisional=True,
                 source=src,
             )
             layers.append(layer)
@@ -105,3 +115,17 @@ class ReaderAgent:
             "entities_found": len(got["entities"]),
         })
         return layers, []
+
+
+_NOISE = re.compile(
+    r"\b(group|holdings?|company|co|corp|inc|ltd|limited|plc|llc|s\.?a\.?u?|"
+    r"s\.?l\.?|b\.?v\.?|n\.?v\.?|gmbh|kg|spa|ag|sa|the)\b\.?", re.I)
+
+
+def _key(name: str) -> str:
+    """Fold a name hard enough that "Nestlé", "Nestlé S.A." and "Nestlé Nespresso
+    SA" do not each become their own layer."""
+    n = (name or "").lower()
+    for a, b in (("é", "e"), ("è", "e"), ("ñ", "n"), ("ü", "u"), ("ö", "o"), ("á", "a")):
+        n = n.replace(a, b)
+    return re.sub(r"[^a-z0-9]+", " ", _NOISE.sub(" ", n)).strip()

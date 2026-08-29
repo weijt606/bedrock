@@ -15,6 +15,7 @@ from typing import Any, AsyncIterator, Callable, Awaitable
 from ..clients.cala import CalaClient
 from ..clients.pioneer import PioneerClient
 from ..schemas import EntityKind, Gap, Layer
+from ..clients.pioneer import is_placeholder
 from .base import detail_lines, first_name, source_of
 
 Emit = Callable[[str, dict[str, Any]], Awaitable[None]]
@@ -54,8 +55,22 @@ class ProspectorAgent:
             # A share register frequently leads with 'Free float' or 'Treasury
             # shares'. Those name a category, not an owner, so walk past them to
             # the first row that is actually somebody.
-            pick = next((j for j, m in enumerate(marks)
-                         if m.get("kind") != "not_an_entity"), 0)
+            # The assay reads a row's name from one set of keys and `first_name`
+            # from another, so a placeholder could be classified under "" and then
+            # picked up under its real key. Judge the row by the name we are
+            # actually going to use.
+            pick = next(
+                (j for j, m in enumerate(marks)
+                 if m.get("kind") != "not_an_entity"
+                 and not is_placeholder(first_name(res.rows[j]))),
+                None)
+            if pick is None:
+                gaps.append(Gap(query=question, reason="no_rows",
+                                note="every row named a category, not an owner",
+                                latency_s=res.latency_s))
+                await emit("gap", {"query": question, "reason": "no_rows",
+                                   "latency_s": res.latency_s})
+                break
             head = res.rows[pick] if pick < len(res.rows) else res.rows[0]
             mark = marks[pick] if pick < len(marks) else {
                 "kind": "unknown", "confidence": 0.4, "terminal": False}

@@ -293,3 +293,55 @@ def test_every_concern_has_both_probes():
     for c in Concern:
         assert c in LIST_QUERY and c in DIRECT_QUERY, c
         assert "{e}" in DIRECT_QUERY[c], c
+
+
+def test_a_registry_placeholder_survives_a_confident_model():
+    """Observed live: the encoder called "(Largest institutional holder — name
+    truncated in data)" a company at 0.60, which put an entity that does not
+    exist in the middle of the chain and spent a cold Cala query asking for its
+    shareholders. Whether a string is a placeholder is a fact about the scrape,
+    not a judgement, so no model gets a vote on it."""
+    import asyncio
+
+    from app.clients.pioneer import PioneerClient
+
+    client = PioneerClient()
+    rows = [{"name": "(Largest institutional holder — name truncated in data)"},
+            {"name": "Vanguard Capital Management LLC"}]
+    got = asyncio.run(client.assay(rows))
+    assert got[0]["kind"] == "not_an_entity" and got[0]["terminal"] is False
+    assert got[1]["kind"] != "not_an_entity"
+
+
+def test_reader_layers_are_marked_provisional():
+    """The reader and the prospector both emit `layer` frames. Without a marker a
+    front end appends two independent readings as if they were one chain — seen
+    live on Nespresso, where the prose gave "Nestlé S.A." while the ladder was
+    still walking to it."""
+    import asyncio
+
+    from app.agents.reader import ReaderAgent
+    from app.clients.cala import CalaResult
+
+    class FakeCala:
+        async def search(self, q):
+            return CalaResult(query=q, endpoint="knowledge/search",
+                              content="Nespresso is owned by Nestlé S.A.", latency_s=0.8)
+
+    class FakePioneer:
+        async def extract(self, text, schema=None):
+            return {"entities": [
+                {"text": "Nespresso", "label": "company", "score": 0.9},        # the subject
+                {"text": "Nestlé S.A.", "label": "company", "score": 0.95},
+                {"text": "Nestlé", "label": "company", "score": 0.9},           # same company
+                {"text": "Free float", "label": "company", "score": 0.8},       # a placeholder
+            ], "classifications": {}, "latency_s": 0.1}
+
+    async def emit(kind, payload, *a):
+        return None
+
+    layers, _ = asyncio.run(
+        ReaderAgent(FakeCala(), FakePioneer()).run("Nespresso", emit))
+
+    assert [l.name for l in layers] == ["Nestlé S.A."]   # subject, dupe, placeholder all dropped
+    assert all(l.provisional for l in layers)

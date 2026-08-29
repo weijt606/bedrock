@@ -117,6 +117,14 @@ class Layer(BaseModel):
     detail: list[str] = Field(default_factory=list, description="Supporting lines, already human readable")
     confidence: float = Field(0.0, ge=0.0, le=1.0, description="Assay agent score")
     terminal: bool = Field(False, description="True when this layer is a human being or family")
+    provisional: bool = Field(
+        False,
+        description="True when this layer came from the reader — entities pulled out "
+                    "of Cala's prose in about a second, before the typed ladder had "
+                    "answered. Provisional layers arrive first and are superseded by "
+                    "the ladder's, which carry stakes and addresses. Render them as a "
+                    "first sketch, and replace rather than append when the ladder "
+                    "lands. The `agent` field on the frame says which produced it.")
     source: Source
 
 
