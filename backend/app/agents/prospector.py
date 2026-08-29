@@ -29,6 +29,7 @@ class ProspectorAgent:
     async def run(self, subject: str, depth: int, emit: Emit) -> tuple[list[Layer], list[Gap]]:
         layers: list[Layer] = []
         gaps: list[Gap] = []
+        marks_by_layer: list[dict[str, Any]] = []
         current = subject
         seen = {subject.lower()}
 
@@ -50,8 +51,14 @@ class ProspectorAgent:
                 break
 
             marks = await self.assay.assay(res.rows)
-            head, mark = res.rows[0], (marks[0] if marks else
-                                       {"kind": "unknown", "confidence": 0.4, "terminal": False})
+            # A share register frequently leads with 'Free float' or 'Treasury
+            # shares'. Those name a category, not an owner, so walk past them to
+            # the first row that is actually somebody.
+            pick = next((j for j, m in enumerate(marks)
+                         if m.get("kind") != "not_an_entity"), 0)
+            head = res.rows[pick] if pick < len(res.rows) else res.rows[0]
+            mark = marks[pick] if pick < len(marks) else {
+                "kind": "unknown", "confidence": 0.4, "terminal": False}
             name = first_name(head)
 
             layer = Layer(
@@ -69,6 +76,7 @@ class ProspectorAgent:
                 source=source_of(res),
             )
             layers.append(layer)
+            marks_by_layer.append(mark)
             await emit("layer", layer.model_dump(mode="json"))
 
             if layer.terminal or name.lower() in seen:
@@ -76,7 +84,23 @@ class ProspectorAgent:
             seen.add(name.lower())
             current = name
 
+        await self._teach(layers, marks_by_layer)
         return layers, gaps
+
+    async def _teach(self, layers: list[Layer], marks: list[dict[str, Any]]) -> None:
+        """Feed Adaptive Inference the labels Cala just proved for us.
+
+        Any node the chain walked *past* demonstrably had shareholders, so it was a
+        company and it did not terminate the chain — whatever the classifier said.
+        We only post where the model disagreed, because a correction that confirms
+        the prediction carries no signal. Nothing here is hand-labelled: the
+        verified graph is the supervisor.
+        """
+        for i in range(len(layers) - 1):
+            mark = marks[i] if i < len(marks) else {}
+            wrong = mark.get("terminal") or mark.get("kind") not in ("company", "fund")
+            if wrong and mark.get("inference_id"):
+                await self.assay.teach(mark["inference_id"], "company", False)
 
 
 def _pct(row: dict[str, Any]) -> float | None:

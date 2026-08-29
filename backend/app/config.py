@@ -26,8 +26,12 @@ class Settings:
 
     # --- Pioneer: the fine-tuned specialist for classification/extraction --
     pioneer_key: str = os.environ.get("PIONEER_API_KEY", "")
-    pioneer_base: str = os.environ.get("PIONEER_BASE", "https://api.pioneer.ai/v1")
-    model_assay: str = os.environ.get("MODEL_ASSAY", "gemma-4-12b")
+    # Native endpoint is /inference (the OpenAI-compatible one lives under /v1).
+    pioneer_base: str = os.environ.get("PIONEER_BASE", "https://api.pioneer.ai")
+    # A GLiNER2 encoder answers in ~100ms; swap in a fine-tuned job id (job_...)
+    # once scripts/train_assay.py has produced one.
+    model_assay: str = os.environ.get("MODEL_ASSAY", "fastino/gliner2-base-v1")
+    assay_threshold: float = _f("ASSAY_THRESHOLD", 0.5)
     pioneer_adaptive: bool = os.environ.get("PIONEER_ADAPTIVE", "1") == "1"
 
     # --- fal: speech to text, and background removal for the shelf --------

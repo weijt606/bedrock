@@ -68,7 +68,11 @@ async def health() -> dict[str, Any]:
             "pioneer": settings.has_pioneer,
             "fal": settings.has_fal,
         },
-        "assay_backend": _orc.pioneer.backend,
+        "assay": {
+            "backend": _orc.pioneer.backend,
+            "adaptive": settings.pioneer_adaptive and settings.has_pioneer,
+            "corrections_posted": _orc.pioneer.taught,
+        },
         "cached_answers": cache.size(),
         "budget": {
             "probe_timeout_s": settings.probe_timeout_s,

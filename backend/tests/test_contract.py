@@ -76,3 +76,27 @@ def test_ambiguous_names_never_end_the_dig():
         out = _heuristic(name, {})
         assert out["terminal"] is False, name
         assert out["kind"] != "person", name
+
+
+@pytest.mark.parametrize("name", [
+    "Free float", "Treasury shares", "Other shareholders", "Public float",
+])
+def test_register_categories_are_not_owners(name):
+    """A share register leads with rows that name a category, not a person. Walking
+    up from "Free float" produces nonsense, so the assay has to reject them."""
+    out = _heuristic(name, {})
+    assert out["kind"] == "not_an_entity"
+    assert out["terminal"] is False
+
+
+def test_assay_schema_matches_the_labels_we_train_on():
+    from app.clients.pioneer import ASSAY_SCHEMA, KINDS
+    tasks = {c["task"]: c["labels"] for c in ASSAY_SCHEMA["classifications"]}
+    assert tasks["entity_kind"] == KINDS
+    assert tasks["chain_terminates"] == ["yes", "no"]
+
+
+def test_row_text_carries_the_columns_that_disambiguate():
+    from app.clients.pioneer import row_text
+    t = row_text("Juan Roig", {"role": "executive chairman", "ownership_percent": "50.66%"})
+    assert "Juan Roig" in t and "role" in t and "50.66" in t
