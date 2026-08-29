@@ -27,7 +27,7 @@ def test_a_reference_photo_makes_a_different_loop():
 
 def test_changing_the_style_invalidates_every_loop(monkeypatch):
     before = media.key("Nutella")
-    monkeypatch.setattr(media, "STYLE_VERSION", "2")
+    monkeypatch.setattr(media, "STYLE_VERSION", "zz-test")
     assert media.key("Nutella") != before
 
 

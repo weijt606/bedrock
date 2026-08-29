@@ -31,6 +31,7 @@ from .agents import (AuditorAgent, EnricherAgent, ExtractorAgent, IntakeAgent,
 from .agents.editorial import build_conduct, build_structure
 from .clients import (CalaClient, FalClient, FalVideoClient, LLMClient,
                       PioneerClient)
+from .clients.packshot import PackshotClient
 from . import media
 from .config import settings
 from .schemas import (ConcernReport, CoreSample, EditorialRoutes, EventType,
@@ -52,6 +53,7 @@ class Orchestrator:
         self.pioneer = PioneerClient()
         self.fal = FalClient()
         self.video = FalVideoClient()
+        self.packshot = PackshotClient()
         self.intake = IntakeAgent(self.cala, self.llm, self.fal)
         self.reader = ReaderAgent(self.cala, self.pioneer)
         self.prospector = ProspectorAgent(self.cala, self.pioneer)
@@ -63,7 +65,8 @@ class Orchestrator:
         self.extractor = ExtractorAgent()
 
     async def aclose(self) -> None:
-        for c in (self.cala, self.llm, self.pioneer, self.fal, self.video):
+        for c in (self.cala, self.llm, self.pioneer, self.fal, self.video,
+                  self.packshot):
             await c.aclose()
 
 
@@ -109,6 +112,19 @@ class Orchestrator:
         image_url = None
         if photo:
             image_url = await self.video.upload(photo, req.mime or "image/jpeg")
+        else:
+            # No photograph from the reader, but the packshot service already
+            # finds a real, credited product picture by name. Using it keeps the
+            # loop image-to-video and keeps a real object on screen — which is
+            # the whole reason we never let a model invent packaging.
+            try:
+                shot = await self.packshot.find(subject.resolved_name)
+                remote = (shot or {}).get("url")
+                # Re-host it: fal cannot fetch from Wikimedia and fails late,
+                # after the job has already been accepted.
+                image_url = await self.video.mirror(remote) if remote else None
+            except Exception:  # noqa: BLE001 - no picture is not an error
+                image_url = None
 
         prompt = build_prompt(motifs, form, bool(image_url))
         job = await self.video.submit(prompt, image_url)

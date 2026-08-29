@@ -35,41 +35,45 @@ UPLOAD_INITIATE = "https://rest.alpha.fal.ai/storage/upload/initiate"
 # One template, filled from values Cala returned. The negative list is the
 # guardrail: no people, no farms, no factories, and no text of any kind, because
 # a video model cannot spell and a misspelt citation is worse than none.
-PROMPT = (
-    "A 6-second seamless editorial motion loop{ref}. "
-    "{subject_line}"
-    "Around and behind it, subtle abstract material textures inspired by "
-    "{motifs} emerge as translucent layers. Fine warm filaments extend outward "
-    "like an invisible network, then return.\n\n"
-    "Art direction: {palette}; premium investigative magazine; quiet, precise, "
-    "elegant, restrained camera motion. The animation is metaphorical, not "
-    "documentary.\n\n"
-    "No people, workers, children, farms, factories, maps, flags, captions, "
-    "numbers, charts, voice, music, invented text, or invented logos."
+# One template, filled from values Cala returned.
+#
+# Rewritten after watching the first output. Video models render concrete nouns
+# and fail at metaphor: the first draft said "no product in frame" and then
+# "around and behind it", leaving `it` with no referent, and asked for an
+# "invisible network" — so the model invented whatever it liked. It also carried
+# the whole negative list in the positive field, where a model is as likely to
+# draw a factory as to omit one.
+#
+# So: one subject, one light, one camera move, and the materials named plainly.
+PROMPT_WITH_PHOTO = (
+    "The {form} in the reference image stays exactly as it is — sharp, centred "
+    "and unchanged, its label and logo untouched. {motif_line}"
+    "Very slow push-in. Shallow depth of field, one soft warm key light. "
+    "Editorial food photography, {palette}. No cuts, no text, no people."
 )
 
-WITH_PHOTO = (
-    "Keep the product packaging recognizable, stable and physically realistic; "
-    "do not alter its label or logo. The {form} sits on a dark, tactile "
-    "editorial surface. "
+PROMPT_NO_PHOTO = (
+    "Extreme close-up of {motifs}. Slow steady push-in. Shallow depth of field, "
+    "one soft warm key light, fine dust in the air. Editorial food photography, "
+    "{palette}. Static composition, no cuts, no text, no people."
 )
-WITHOUT_PHOTO = (
-    "A dark, tactile editorial surface lit like a still life, with no product "
-    "and no subject in frame. "
-)
+
+MOTIF_LINE = "Raw {motifs} drift slowly into frame around it, catching the light. "
 
 PALETTE = "deep brown, cream, muted red"
 
 
 def build_prompt(motifs: list[str], form: str | None, has_photo: bool) -> str:
     """Fill the template. `motifs` are ingredients Cala actually returned."""
-    return PROMPT.format(
-        ref=" based on the supplied reference image" if has_photo else "",
-        subject_line=(WITH_PHOTO.format(form=form or "product") if has_photo
-                      else WITHOUT_PHOTO),
-        motifs=", ".join(motifs[:3]) if motifs else "raw natural materials",
-        palette=PALETTE,
-    )
+    named = ", ".join(motifs[:3]) if motifs else ""
+    if has_photo:
+        return PROMPT_WITH_PHOTO.format(
+            form=form or "product",
+            motif_line=MOTIF_LINE.format(motifs=named) if named else "",
+            palette=PALETTE)
+    return PROMPT_NO_PHOTO.format(
+        motifs=named or "raw cocoa beans and hazelnuts on dark stone",
+        palette=PALETTE)
 
 
 class FalVideoClient:
@@ -111,6 +115,27 @@ class FalVideoClient:
             return slot["file_url"]
         except Exception as exc:  # noqa: BLE001 - no video is not an error
             logger.warning("fal image upload failed: %s", type(exc).__name__)
+            return None
+
+    async def mirror(self, url: str) -> str | None:
+        """Fetch a third-party picture and re-host it on fal storage.
+
+        Handing fal someone else's URL fails: Wikimedia blocks its user agent,
+        and the job completes with `file_download_error` rather than an obvious
+        failure at submit. Fetching the bytes ourselves — with a browser-shaped
+        user agent, which is what Wikimedia asks for — sidesteps the whole class
+        of problem, whatever the packshot source turns out to be.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=45.0, follow_redirects=True) as c:
+                r = await c.get(url, headers={"User-Agent": "Bedrock/0.1 (hackathon project)"})
+                r.raise_for_status()
+                mime = r.headers.get("content-type", "image/jpeg").split(";")[0]
+                if not mime.startswith("image/"):
+                    return None
+                return await self.upload(base64.b64encode(r.content).decode(), mime)
+        except Exception as exc:  # noqa: BLE001 - no picture is not an error
+            logger.warning("packshot mirror failed: %s", type(exc).__name__)
             return None
 
     async def submit(self, prompt: str,
@@ -160,15 +185,27 @@ class FalVideoClient:
             st = await self._client.get(
                 f"{QUEUE}/{base}/requests/{request_id}/status", headers=self._auth)
             st.raise_for_status()
-            status = st.json().get("status")
+            payload = st.json()
+            status = payload.get("status")
             if status in {"IN_QUEUE", "IN_PROGRESS"}:
                 return ("pending", None)
             if status != "COMPLETED":
                 return ("unavailable", None)
-            res = await self._client.get(
-                f"{QUEUE}/{base}/requests/{request_id}", headers=self._auth)
+            # Take the address fal hands back rather than reassembling it: the
+            # result path is not always the status path minus /status, and
+            # guessing it returned 422.
+            where = payload.get("response_url") or f"{QUEUE}/{base}/requests/{request_id}"
+            res = await self._client.get(where, headers=self._auth)
             res.raise_for_status()
             return ("ready", _video_url(res.json()))
+        except httpx.HTTPStatusError as exc:
+            # A job is not in the queue index the instant submit returns, so an
+            # early 404 means "not yet", not "gone". Treating it as dead threw
+            # away finished videos that were merely a second young.
+            if exc.response.status_code == 404:
+                return ("pending", None)
+            logger.warning("fal video poll failed: %s", exc.response.status_code)
+            return ("unavailable", None)
         except Exception as exc:  # noqa: BLE001
             logger.warning("fal video poll failed: %s", type(exc).__name__)
             return ("unavailable", None)
