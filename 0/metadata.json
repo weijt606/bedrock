@@ -1,0 +1,64 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "01M17CDVC6FT7DF0E0CD54N980",
+  "session_id": "44f0fe99-3cda-44f1-9b64-ac1be0da0089",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-29T18:27:36.847876Z",
+  "branch": "feat/immediate-reveal",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "backend/app/agents/extractor.py",
+    "backend/app/schemas.py",
+    "docs/GAMIFICATION.md",
+    "frontend/app.js",
+    "frontend/play.js",
+    "frontend/styles.css"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "efd764c15190",
+  "checkpoint_transcript_start": 662,
+  "transcript_lines_at_start": 662,
+  "compact_transcript_start": 112,
+  "token_usage": {
+    "input_tokens": 94,
+    "cache_creation_tokens": 87746,
+    "cache_read_tokens": 10494382,
+    "output_tokens": 65461,
+    "api_call_count": 47
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-29T18:27:36.778305Z",
+    "agent_lines": 15,
+    "agent_removed": 4,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 27,
+    "total_committed": 15,
+    "total_lines_changed": 46,
+    "agent_percentage": 41.30434782608695,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 74,
+      "user_lines_removed": 27,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "backend/app/agents/extractor.py": 2,
+        "backend/app/schemas.py": 3,
+        "frontend/play.js": 65,
+        "frontend/styles.css": 4
+      },
+      "user_removed_per_file": {
+        "frontend/play.js": 24,
+        "frontend/styles.css": 3
+      }
+    }
+  ]
+}
