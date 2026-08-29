@@ -67,8 +67,14 @@
     const cards = [];
     const guesses = (sample.guesses || []).filter(
       (g) => g.question && (g.options || []).length);
+    // Two kinds of wager. The chain ones open the deck — they are a puzzle, and
+    // being wrong about them is a surprise. The concern ones are not a puzzle:
+    // they are asked one card before the record answers them, so the reader has
+    // to say what they think before being shown what is filed.
+    const chainBets = guesses.filter((g) => !g.concern).slice(0, 2);
+    const concernBets = guesses.filter((g) => g.concern);
 
-    guesses.slice(0, 2).forEach((g, n) => cards.push({
+    chainBets.forEach((g, n) => cards.push({
       kind: 'bet', id: g.id,
       html: '<p class="pc-eyebrow">'
         + (n === 0 ? 'Before we show you anything' : 'One more') + '</p>'
@@ -79,7 +85,24 @@
         + '</div><p class="pc-say">Pick one. We will hold you to it.</p>',
     }));
 
+    let concernBetsDealt = false;
     (sample.story || []).forEach((beat) => {
+      // The questions land immediately before the first finding, so the answer is
+      // the very next card. Asked at the top of the deck they would be trivia;
+      // asked here they are a position the reader took a moment ago.
+      if (beat.kind === 'concern' && !concernBetsDealt) {
+        concernBetsDealt = true;
+        concernBets.forEach((g, n) => cards.push({
+          kind: 'bet', id: g.id,
+          html: '<p class="pc-eyebrow pc-eyebrow--warn">'
+            + (n === 0 ? 'Something you should know' : 'And this one') + '</p>'
+            + '<h2 class="pc-head">' + esc(g.question) + '</h2>'
+            + '<div class="pc-chips" role="group" aria-label="Your answer">'
+            + g.options.map((o) => '<button class="pc-chip" type="button" data-pick="'
+                + esc(o) + '">' + esc(o) + '</button>').join('')
+            + '</div><p class="pc-say">Answer, then read what is on file.</p>',
+        }));
+      }
       const fig = splitFigure(beat.headline);
       const head = fig
         ? '<p class="pc-figure">' + esc(fig.figure) + '</p>'
@@ -206,7 +229,13 @@
     const verdictHtml = () => {
       const rows = [];
       let missed = 0;
-      (sample.guesses || []).slice(0, 2).forEach((g) => {
+      // Same split build() used to deal them: the first two chain wagers plus
+      // every concern the record answered. Recomputed rather than shared because
+      // this runs in mount(), not build().
+      const wagers = (sample.guesses || []).filter(
+        (g) => g.question && (g.options || []).length);
+      [...wagers.filter((g) => !g.concern).slice(0, 2),
+       ...wagers.filter((g) => g.concern)].forEach((g) => {
         if (!g.answer) return;
         const mine = picks[g.id];
         if (mine && mine !== g.answer) missed += 1;

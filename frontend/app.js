@@ -20,8 +20,6 @@ const recordingControls = document.querySelector('.recording-controls');
 const cancelRecording = document.querySelector('#cancel-recording');
 const stopRecordingButton = document.querySelector('#stop-recording');
 const waveformBars = [...document.querySelectorAll('.waveform span')];
-const responsePanel = document.querySelector('#response-panel');
-const responseOutput = document.querySelector('#response-output');
 const notice = document.querySelector('#notice');
 
 const examples = ['Starbucks Macchiato', 'Oreo Original', 'Nutella', 'Coca-Cola Zero'];
@@ -46,18 +44,15 @@ const showNotice = (message) => {
   window.clearTimeout(noticeTimer);
   noticeTimer = window.setTimeout(() => notice.classList.remove('show'), 2600);
 };
+// The stream still goes somewhere — the console, where a developer can read it
+// and nobody else has to. On the page it was a wall of JSON under the dig, and
+// a wall of JSON is not evidence: the cards carry their own citations.
 const showJson = (label, value) => {
   console.info(`[Bedrock] ${label}`, value);
   responseEntries.push({ label, value });
-  responsePanel.hidden = false;
-  responseOutput.textContent = responseEntries.map((entry) => (
-    `${entry.label}\n${JSON.stringify(entry.value, null, 2)}`
-  )).join('\n\n');
 };
 const resetResponse = () => {
   responseEntries = [];
-  responsePanel.hidden = true;
-  responseOutput.textContent = '';
 };
 const summarizePayload = (payload) => ({
   ...payload,
@@ -424,10 +419,32 @@ removePhoto.addEventListener('click', removeSelectedPhoto);
 voiceButton.addEventListener('click', startRecording);
 cancelRecording.addEventListener('click', () => stopRecording(false));
 stopRecordingButton.addEventListener('click', () => stopRecording(true));
+// The button stays green and breathes for as long as the trace is running. A
+// cold trace is 30-90 seconds: a spinner would claim progress we cannot measure,
+// and a dead button looks broken. Breathing promises only "still going", which
+// is the honest amount. It stops on the first layer, because by then the reader
+// has something to watch that is not a button.
+const sendButton = form.querySelector('.send-button');
+const working = (on) => {
+  if (!sendButton) return;
+  sendButton.classList.toggle('is-working', on);
+  sendButton.setAttribute('aria-busy', String(on));
+  if (!on) {
+    sendButton.classList.add('is-done');
+    window.setTimeout(() => sendButton.classList.remove('is-done'), 600);
+  }
+};
+document.addEventListener('bedrock:frame', (e) => {
+  const t = e.detail.type;
+  if (t === 'layer' || t === 'done' || t === 'error') working(false);
+});
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (isRecording) { showNotice('Stop recording when you are ready.'); return; }
+  if (sendButton && sendButton.classList.contains('is-working')) return;
   try {
+    working(true);
     resetResponse();
     let payload;
     if (subject.value.trim()) {
@@ -435,6 +452,7 @@ form.addEventListener('submit', async (event) => {
     } else if (selectedPhoto) {
       payload = { kind: 'image', image_b64: await toBase64(selectedPhoto), mime: selectedPhoto.type, depth: 4 };
     } else {
+      working(false);
       subject.focus();
       showNotice('Start with a food, product, brand, voice note or photo.');
       return;
@@ -442,6 +460,7 @@ form.addEventListener('submit', async (event) => {
     await submitToBedrock(payload);
     showNotice('Bedrock has started your trace.');
   } catch (error) {
+    working(false);
     console.error('[Bedrock] request failed', error);
     showNotice('Bedrock is not reachable. Check that the local server is running.');
     showJson('Connection issue', {
@@ -567,18 +586,14 @@ const addLayer = (layer) => {
   item.scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
 
+// A silence is a real result and belongs in the trail. What it is not is a
+// query log: printing the phrasings and the `rows = 0` turned the one line that
+// says "we looked and found nothing" into a wall of machinery. The attempts are
+// still in the payload, and the deck's silence card is where they get read.
 const addGap = (gap) => {
   stopProbe();
-  const attempts = (gap.attempts || []).length
-    ? `<ul>${gap.attempts.map((q) => `<li>${escapeHtml(q)}</li>`).join('')}</ul>`
-    : '';
   const item = document.createElement('li');
-  item.innerHTML = `
-    <p class="chain__step">Nothing on the record</p>
-    <div class="gap">
-      ${escapeHtml(gap.query)} → rows = <b>0</b>
-      ${attempts ? `<p style="margin:.7rem 0 0;opacity:.7">Asked ${gap.attempts.length} ways:</p>${attempts}` : ''}
-    </div>`;
+  item.innerHTML = '<p class="chain__step">Nothing on the record</p>';
   chainList.appendChild(item);
 };
 
@@ -712,100 +727,4 @@ document.querySelectorAll('.popular button[data-suggest]').forEach((chip) => {
     resize();
     form.requestSubmit();
   });
-});
-
-// ---------------------------------------------------------------------------
-//  the product on the plinth
-// ---------------------------------------------------------------------------
-//
-// The strata never change — they are what everything is made of. What stands on
-// them is whatever the person just named, so the hero is a picture of *their*
-// thing rather than a stock can.
-//
-// Typed a name  -> /v1/packshot finds an official photograph (Open Food Facts
-//                  first, then Wikipedia) and returns it with its background
-//                  removed and its attribution.
-// Took a photo  -> /v1/cutout removes the background from theirs.
-//
-// Both are cut out rather than generated. BiRefNet decides which of a
-// photographer's pixels are the subject; it does not invent one. A generated
-// product image, in a piece whose whole argument is that these facts are
-// checkable, would undo the argument.
-
-const coreEl = document.querySelector('.core');
-const coreProduct = document.querySelector('#core-product');
-const coreProductImg = document.querySelector('#core-product-img');
-let productToken = 0;
-
-// When the person supplies a photograph, that photograph *is* the subject. The
-// name we read off it can be wrong — a label is small, angled and often not in
-// English — but the object in their hand is not in question. So a photograph
-// locks the hero: nothing found by name afterwards is allowed to replace it.
-let productIsFromPhoto = false;
-
-function swapProduct(src, credit) {
-  if (!coreProduct || !coreProductImg || !src) return;
-  const token = ++productToken;
-  const next = new Image();
-  next.onload = () => {
-    if (token !== productToken) return;          // a newer subject already won
-    coreEl?.classList.add('is-live');            // leave the as-shot photograph
-    coreProduct.classList.add('is-swapping');
-    window.setTimeout(() => {
-      coreProductImg.src = src;
-      coreProductImg.alt = credit || '';
-      coreProduct.classList.remove('is-swapping');
-    }, 240);
-  };
-  next.src = src;
-}
-
-async function showProductFor(name) {
-  if (!name?.trim() || productIsFromPhoto) return;
-  try {
-    const r = await fetch(`${API_URL}/v1/packshot?name=${encodeURIComponent(name.trim())}`);
-    if (!r.ok) return;                            // no picture is fine; keep the last
-    const shot = await r.json();
-    swapProduct(shot.cutout || shot.url, `${shot.title} — ${shot.publisher}`);
-    showJson('Packshot', shot);
-  } catch { /* the hero is decoration; never let it break a dig */ }
-}
-
-async function showProductForPhoto(file) {
-  if (!file) return;
-  productIsFromPhoto = true;
-  helper.textContent = 'Cutting the product out…';
-  try {
-    const r = await fetch(`${API_URL}/v1/cutout`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_b64: await toBase64(file), mime: file.type }),
-    });
-    if (!r.ok) throw new Error('cutout failed');
-    const { url } = await r.json();
-    // Only now does it go on the plinth. Placing the raw photograph first and
-    // replacing it a moment later showed the person their kitchen table standing
-    // on a rock, which is the opposite of the point.
-    swapProduct(url, 'Your photograph');
-    helper.textContent = '';
-  } catch {
-    // Without a cut-out it would be a rectangle sitting on the strata, so the
-    // hero keeps whatever it had and the photograph is still used for the dig.
-    helper.textContent = 'Could not separate the product from its background.';
-  }
-}
-
-document.addEventListener('bedrock:frame', (event) => {
-  const { type, payload } = event.detail;
-  // The resolved name beats what was typed: "cocacola" becomes "Coca-Cola".
-  // It never beats a photograph.
-  if (type === 'subject') showProductFor(payload.resolved_name);
-});
-
-photoInput?.addEventListener('change', () => showProductForPhoto(photoInput.files?.[0]));
-removePhoto?.addEventListener('click', () => { productIsFromPhoto = false; });
-subject?.addEventListener('input', () => { if (!photoInput?.files?.length) productIsFromPhoto = false; });
-
-document.querySelectorAll('.popular button[data-suggest]').forEach((chip) => {
-  chip.addEventListener('pointerenter', () => showProductFor(chip.dataset.suggest));
 });

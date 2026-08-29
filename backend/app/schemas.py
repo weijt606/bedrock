@@ -41,10 +41,19 @@ class SampleRequest(BaseModel):
     include: list[Literal["ownership", "supply", "statute", "flags", "siblings",
                           "concerns", "editorial"]] = Field(
         default_factory=lambda: ["ownership", "supply", "statute", "flags",
-                                 "siblings", "editorial"]
+                                 "siblings", "editorial", "concerns"]
     )
+    # On by default, and this is the whole point. Somebody who picks up a jar is
+    # not going to type "child_labour" into a box first — they would have to
+    # already suspect it, and if they already suspect it we have told them
+    # nothing. The record has to be there when they arrive.
+    #
+    # Four rather than all eight because each one costs a cold Cala call per
+    # entity in the chain, and these are the four the food supply chain actually
+    # turns on. The other four stay available to a caller who asks.
     concerns: list[Concern] = Field(
-        default_factory=list,
+        default_factory=lambda: [Concern.child_labour, Concern.forced_labour,
+                                 Concern.deforestation, Concern.environment],
         description="What the person actually cares about. Each one is looked up "
                     "against every entity in the ownership chain and every known "
                     "supplier — not just the brand on the front of the packet.")
@@ -387,10 +396,17 @@ class GuessPrompt(BaseModel):
     """Pre-computed question the game layer can put to the player before revealing
     the chain. `answer` is withheld from the stream until the matching layer lands."""
 
-    id: Literal["ends_in_country", "hops_to_human", "still_domestic"]
+    # Free-form because the concern prompts are built from whatever Cala turned
+    # out to have on file: "concern:child_labour", "concern:tax". The three
+    # ownership ids are fixed.
+    id: str
     question: str
     options: list[str]
     answer: str | None = Field(None, description="Null while the dig is in flight")
+    concern: Concern | None = Field(
+        None, description="Set when this guess is about a finding, not the chain")
+    stake: str | None = Field(
+        None, description="What the player is being asked to commit to, in one line")
 
 
 class Score(BaseModel):

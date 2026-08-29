@@ -75,7 +75,7 @@ class Settings:
     # probes run concurrently, each one is capped, and a probe that blows its
     # budget becomes a Gap instead of stalling the dig.
     probe_timeout_s: float = _f("PROBE_TIMEOUT_S", 90.0)
-    total_budget_s: float = _f("TOTAL_BUDGET_S", 150.0)
+    total_budget_s: float = _f("TOTAL_BUDGET_S", 240.0)
     max_concurrent_probes: int = int(os.environ.get("MAX_CONCURRENT_PROBES", "4"))
     assay_timeout_s: float = _f("ASSAY_TIMEOUT_S", 12.0)
     planner_timeout_s: float = _f("PLANNER_TIMEOUT_S", 10.0)

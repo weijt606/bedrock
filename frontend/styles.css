@@ -25,6 +25,7 @@ body {
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  padding-bottom: 4.5rem;   /* clears the floating credits */
 }
 
 /* ------------------------------------------------------------- masthead */
@@ -48,7 +49,7 @@ body {
   align-items: center;
   gap: clamp(1rem, 4vw, 3rem);
   padding: clamp(1.5rem, 5vh, 4rem) clamp(1.25rem, 4vw, 3.25rem) 3rem;
-  min-height: calc(100vh - 5rem);
+  min-height: calc(100vh - 9.5rem);
 }
 .start[hidden] { display: none; }
 .start__copy { max-width: 40rem; }
@@ -108,10 +109,63 @@ h1 em { font-style: normal; color: var(--red); }
 .icon-button img { display: block; }
 
 .send-button {
-  width: 3.1rem; height: 3.1rem; background: var(--ink); margin-left: .25rem;
+  width: 3.1rem; height: 3.1rem; margin-left: .25rem; position: relative;
+  background: var(--ink);
+  box-shadow: 0 1px 2px rgba(17, 17, 17, .22);
 }
-.send-button img { filter: invert(1); }
+.send-button img {
+  /* brightness(0) flattens the artwork to black whatever it shipped as, then
+     invert makes it white — `invert` alone depends on what the file happens to
+     contain, and this one is not black. */
+  filter: brightness(0) invert(1);
+  position: relative; z-index: 2;   /* above the working ring, always */
+}
 .send-button:hover, .send-button:focus-visible { transform: scale(1.05); }
+.send-button:active { transform: scale(.94); }
+
+/* Working. A cold trace runs 30-90 seconds, so the button has to keep saying
+   something for a long time — a spinner would claim progress it cannot measure,
+   and a dead button would look broken. Breathing says only "still going", which
+   is the honest amount to promise.
+
+   The ring behind it pulses on its own beat so the two never land together and
+   settle into something mechanical. Black throughout: the button is the one
+   control on the page and it does not need a second colour to be found. */
+.send-button.is-working {
+  cursor: progress;
+  animation: sb-breathe 1.9s ease-in-out infinite;
+}
+.send-button.is-working img { animation: sb-fade 1.9s ease-in-out infinite; }
+.send-button.is-working::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 999px;
+  border: 1.5px solid var(--ink); z-index: 0;
+  animation: sb-ring 2.6s cubic-bezier(.4, 0, .3, 1) infinite;
+}
+.send-button.is-working:hover { transform: none; }
+
+@keyframes sb-breathe {
+  0%, 100% { transform: scale(1);    box-shadow: 0 1px 2px rgba(17, 17, 17, .22); }
+  50%      { transform: scale(1.06); box-shadow: 0 5px 18px rgba(17, 17, 17, .3); }
+}
+@keyframes sb-fade { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@keyframes sb-ring {
+  0%   { transform: scale(.9);  opacity: .7; }
+  70%  { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* Done. One settle, so finishing is felt without a message. */
+.send-button.is-done { animation: sb-settle .55s cubic-bezier(.2, .7, .3, 1); }
+@keyframes sb-settle {
+  0%   { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .send-button.is-working { animation: none; opacity: .8; }
+  .send-button.is-working::after, .send-button.is-working img { animation: none; }
+  .send-button.is-done { animation: none; }
+}
 .send-button--wide {
   width: auto; height: auto; padding: .85rem 1.7rem; color: var(--paper);
   font-family: var(--sans); font-size: .82rem; font-weight: 600;
@@ -133,17 +187,26 @@ h1 em { font-style: normal; color: var(--red); }
 .waveform i:nth-child(3n) { animation-delay: .26s; }
 @keyframes pulse { 0%, 100% { height: 25%; } 50% { height: 100%; } }
 
-.media-preview {
-  display: flex; align-items: center; gap: .8rem; margin: 0 0 .9rem;
-  padding: .55rem .8rem; border: 1px solid var(--line); border-radius: 1rem;
-  background: #fff; max-width: 41rem; font-size: .86rem; color: var(--ink-soft);
+/* The attachment, inside the bar. A thumbnail, a way to drop it, and a hairline
+   that separates the picture from the words — the two are one question, so they
+   share one field. */
+.attach {
+  display: flex; align-items: center; gap: .1rem; flex: none;
+  margin: 0 .7rem 0 0; padding-right: .8rem;
+  border-right: 1px solid var(--line);
 }
-.media-preview[hidden] { display: none; }
-.media-preview img { width: 2.6rem; height: 2.6rem; object-fit: cover; border-radius: .6rem; }
-.remove-media {
-  margin-left: auto; border: 0; background: none; cursor: pointer;
-  font-size: 1.3rem; line-height: 1; color: var(--ink-soft);
+.attach[hidden] { display: none; }
+.attach img {
+  width: 2.9rem; height: 2.9rem; object-fit: cover; border-radius: .7rem;
+  display: block; background: var(--paper-warm);
 }
+.attach__x {
+  border: 0; background: none; cursor: pointer; padding: 0 .5rem;
+  font-size: 1.35rem; line-height: 1; color: var(--ink-soft);
+  transition: color .18s ease;
+}
+.attach__x:hover, .attach__x:focus-visible { color: var(--ink); }
+.attach__label { display: none; }   /* the thumbnail is the label */
 
 .helper { margin: .9rem 0 0; min-height: 1.2rem; font-size: .84rem; color: var(--ink-soft); }
 
@@ -160,74 +223,59 @@ h1 em { font-style: normal; color: var(--red); }
 .popular button:hover, .popular button:focus-visible { background: #fff; border-color: #c3bcae; }
 
 /* ------------------------------------------------------------- core sample */
-.core { position: relative; align-self: stretch; min-height: 30rem; }
-/* The shot as taken, cut out, used until there is a real subject. No mask and no
-   studio ground: the file already has an alpha channel. */
+/* The core sample. The photograph on the left, the legend on its own clear
+   paper to the right — they must not overlap, because a label sitting on the
+   rock is unreadable and the leader line is what does the pointing. Both are
+   placed against the same box so the callouts line up with the strata. */
+/* Two real columns rather than two absolutely-positioned boxes. The image was
+   inset from the right and then centred inside what was left, so how far the
+   rock actually sat from its labels depended on the shape of the window — at
+   most widths the leader lines pointed at nothing. `justify-self: end` puts the
+   rock's edge on the column boundary, and the gutter *is* the length of the
+   leader line, so the two are attached by construction. */
+.core {
+  position: relative;
+  align-self: stretch;
+  min-height: clamp(21rem, 56vh, 34rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 12.5rem;
+  column-gap: 4.5rem;
+  align-items: center;
+}
+
 .core__default {
-  position: absolute; left: 34%; bottom: 0; transform: translateX(-50%);
-  height: 94%; width: auto; max-width: none;
-  object-fit: contain; object-position: bottom;
-  filter: drop-shadow(0 24px 34px rgba(40, 30, 20, .22));
-  transition: opacity .5s ease; z-index: 3;
-}
-.core.is-live .core__default { opacity: 0; pointer-events: none; }
-.core__plinth, .core__product { opacity: 0; transition: opacity .5s ease; }
-.core.is-live .core__plinth, .core.is-live .core__product { opacity: 1; }
-
-/* The plinth is fixed: it is the strata, and they do not change with the
-   product. Only the thing standing on them does. */
-.core__plinth {
-  position: absolute; left: 34%; bottom: 2%; transform: translateX(-50%);
-  height: 68%; width: auto; max-width: none; object-fit: contain; object-position: bottom;
-  /* Above the product on purpose: anything taller than the top stratum then
-     tucks into the rock rather than spearing through it, which reads as
-     embedded rather than broken. */
-  z-index: 2;
-  /* The photograph carries its own dark studio ground. Two masks are composited
-     so it sits on paper instead of reading as a pasted rectangle: a soft ellipse
-     that holds the subject, and edge fades that kill the four straight borders. */
-  /* The plinth is already cut out, so it only needs its base softened into the
-     paper — it should look quarried, not placed. */
-  -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
-  filter: drop-shadow(0 24px 34px rgba(40, 30, 20, .22));
+  justify-self: end;
+  display: block;
+  max-height: clamp(21rem, 56vh, 34rem);
+  max-width: 100%; width: auto; height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 24px 34px rgba(40, 30, 20, .2));
 }
 
-/* The product sits on the top stratum, scaled to the plinth so a tall bottle and
-   a flat packet both land at the same place. */
-.core__product {
-  position: absolute; left: 34%; bottom: 60%; transform: translateX(-50%);
-  display: grid; place-items: end center; z-index: 1;
-  transition: opacity .45s ease, transform .45s cubic-bezier(.2, .7, .3, 1);
+.core__legend {
+  position: relative; align-self: stretch;
+  margin: 0; padding: 0; list-style: none;
 }
-.core__product img {
-  /* Capped in viewport units rather than percentages: the core column's height
-     is only ever indefinite, so a percentage cap silently does nothing and a
-     two-litre bottle renders at full size straight through the plinth. */
-  max-height: 26vh; max-width: 15vw; width: auto; height: auto;
-  object-fit: contain; object-position: bottom;
-  filter: drop-shadow(0 14px 20px rgba(40, 30, 20, .32));
-}
-.core.is-live .core__product.is-swapping { opacity: 0; transform: translate(-50%, -14px); }
-
-.core__legend { position: absolute; inset: 0; margin: 0; padding: 0; list-style: none; }
 .core__legend li {
-  position: absolute; right: 0; top: var(--y); transform: translateY(-50%);
-  display: grid; grid-template-columns: 1.55rem 1fr; column-gap: .6rem;
-  width: 11.5rem; align-items: center;
+  position: absolute; left: 0; top: var(--y); transform: translateY(-50%);
+  display: grid; grid-template-columns: 1.6rem 1fr; column-gap: .65rem;
+  align-items: center; width: 100%;
 }
-/* the leader line back to the stratum it names */
+/* The leader line, and the point it comes from. Grey rather than black: it is
+   an aid to reading, not a finding, and at black weight it competes with the
+   labels it exists to serve. */
 .core__legend li::before {
-  content: ""; position: absolute; right: 100%; top: 50%; width: 6.5rem;
-  height: 1px; background: #cfc8bc;
+  content: ""; position: absolute; right: 100%; top: 50%;
+  width: 4.5rem; height: 1.5px; background: #a7a09a;   /* == the grid gutter */
 }
 .core__legend li::after {
-  content: ""; position: absolute; right: calc(100% + 6.5rem); top: 50%;
-  width: 5px; height: 5px; margin-top: -2px; border-radius: 50%; background: #b8b1a4;
+  content: ""; position: absolute; right: calc(100% + 4.5rem); top: 50%;
+  width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%;
+  background: #a7a09a; box-shadow: 0 0 0 2.5px var(--paper);
 }
-.core__legend img { grid-row: span 2; width: 1.55rem; height: 1.55rem; opacity: .85; }
+.core__legend img { grid-row: span 2; width: 1.6rem; height: 1.6rem; opacity: .85; }
 .core__legend b {
-  font-size: .76rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  font-size: .78rem; font-weight: 800; letter-spacing: .045em; text-transform: uppercase;
 }
 .core__legend span { font-size: .76rem; color: var(--ink-soft); }
 
@@ -377,9 +425,14 @@ body.is-loading .skeleton-screen { opacity: 1; }
 /* ------------------------------------------------------------- responsive */
 @media (max-width: 980px) {
   .start { grid-template-columns: 1fr; min-height: 0; }
-  .core { min-height: 24rem; order: -1; }
-  .core__stack { right: 30%; height: 100%; bottom: 0; }
-  .core__legend li { width: 9.5rem; }
+  /* Narrower gutter, and the leader line follows it — the two are one number in
+     two places, so they have to move together or the lines detach again. */
+  .core {
+    min-height: 24rem; order: -1;
+    grid-template-columns: minmax(0, 1fr) 9.5rem;
+    column-gap: 3rem;
+  }
+  .core__default { max-height: 24rem; }
   .core__legend li::before { width: 3rem; }
   .core__legend li::after { right: calc(100% + 3rem); }
 }
@@ -403,6 +456,14 @@ body.is-loading .skeleton-screen { opacity: 1; }
 
 .pc-eyebrow { font:500 .63rem/1 var(--mono); letter-spacing:.18em; text-transform:uppercase;
   color:var(--ink-soft); }
+/* The concern questions are the only cards where being wrong costs the reader
+   something, so their eyebrow is the one place the red is spent. */
+.pc-eyebrow--warn { color: var(--red); }
+.pc-eyebrow--warn::before {
+  content: ""; display: inline-block; vertical-align: .05em;
+  width: .42em; height: .42em; margin-right: .55em;
+  border-radius: 50%; background: currentColor;
+}
 .pc-head { font-family:var(--sans); font-weight:800; letter-spacing:-.035em; line-height:1.02;
   font-size:clamp(1.9rem,1rem + 3.6vw,3.2rem); max-width:18ch; text-wrap:balance; }
 .pc-head--under { font-weight:600; font-size:clamp(1.15rem,.85rem + 1.3vw,1.7rem);
@@ -539,4 +600,68 @@ body.is-loading .skeleton-screen { opacity: 1; }
 }
 .pc-nav__b:hover, .pc-nav__b:focus-visible {
   color: var(--ink); border-color: #c3bcae; background: #fff;
+}
+
+/* ---------------------------------------------------------------------------
+   who says what
+   ---------------------------------------------------------------------------
+   The distinction the whole project rests on, printed where it can be checked.
+   Cala is on its own line, at its own size, because Cala is the only one of
+   these that states a fact; the rest are listed with the job they do, so
+   "powered by" can never be read as "wrote the answer". */
+.credits {
+  /* Floated rather than placed. It is a standing declaration about every page
+     below it, so it stays legible without spending a screenful of the hero to
+     say so — and the hero keeps its own height instead of being squeezed. */
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  margin: 0;
+  padding: .78rem clamp(1.25rem, 4vw, 3.25rem) .85rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .85rem 2.5rem;
+}
+.credits__lead {
+  margin: 0;
+  display: flex; align-items: flex-start; gap: .6rem;
+  font-size: .84rem; line-height: 1.45;
+  color: var(--ink-soft);
+}
+.credits__lead img { flex: none; margin-top: .1rem; }
+.credits__lead b { color: var(--ink); font-weight: 800; }
+
+.credits__stack {
+  margin: 0; padding: 0; list-style: none;
+  display: flex; flex-wrap: wrap; gap: .5rem 1.5rem;
+}
+.credits__stack li {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: .42rem;
+}
+.credits__stack img { grid-row: span 2; width: 18px; height: 18px; }
+/* Pioneer's mark ships near-white — invisible on this paper. Flattening it to
+   black is a rendering of a monochrome logo, not a redrawing of it. */
+.credits__stack img.is-pale { filter: brightness(0); opacity: .8; }
+.credits__stack b {
+  align-self: end;
+  font-size: .78rem; font-weight: 700; color: var(--ink); line-height: 1.1;
+}
+.credits__stack span {
+  align-self: start;
+  font-family: var(--mono);
+  font-size: .62rem; color: var(--ink-soft);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+
+@media (max-width: 900px) {
+  .credits { padding-bottom: 2rem; }
+  .credits__stack { gap: .5rem 1.1rem; }
 }
