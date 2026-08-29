@@ -18,6 +18,7 @@ citation like any other.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -44,12 +45,25 @@ class PackshotClient:
 
     # ------------------------------------------------------------------ find
     async def find(self, name: str) -> dict[str, Any] | None:
-        """An official picture of the named product, with its attribution."""
-        return await self._open_food_facts(name) or await self._wikipedia(name)
+        """An official picture of the named product, with its attribution.
 
-    async def _open_food_facts(self, name: str) -> dict[str, Any] | None:
+        Open Food Facts is tried twice — by name, then by brand — before falling
+        back, because its `image_front_url` is always a packshot: the product
+        photographed square-on against white. Wikipedia's lead image is whatever
+        best illustrates an article, which for a food is as likely to be the
+        thing being eaten as the thing being sold, and a slice of bread with
+        chocolate spread on it is not what belongs on the plinth.
+        """
+        return (await self._open_food_facts(name)
+                or await self._open_food_facts(name, by_brand=True)
+                or await self._wikipedia(name))
+
+    async def _open_food_facts(self, name: str,
+                               by_brand: bool = False) -> dict[str, Any] | None:
+        key = "brands_tags" if by_brand else "search_terms"
+        value = name.lower().replace(" ", "-") if by_brand else name
         products = await self._off_query(OFF_SEARCH, {
-            "search_terms": name, "page_size": 20,
+            key: value, "page_size": 20,
             "fields": "product_name,brands,image_front_url",
         })
         if not products:
@@ -59,6 +73,8 @@ class PackshotClient:
                 "search_terms": name, "search_simple": 1, "action": "process",
                 "json": 1, "page_size": 20,
             })
+        if by_brand and not products:
+            return None
 
         wanted = _fold(name)
         for product in products:
@@ -104,10 +120,15 @@ class PackshotClient:
 
         for page in sorted(pages.values(), key=lambda p: p.get("index", 99)):
             url = (page.get("original") or {}).get("source")
-            if isinstance(url, str) and url.startswith("http"):
-                return {"url": url, "title": page.get("title") or name,
-                        "publisher": "Wikipedia",
-                        "attribution": "wikipedia.org"}
+            if not isinstance(url, str) or not url.startswith("http"):
+                continue
+            # A lead image is chosen to illustrate an article, not to sell a
+            # product. Skip the ones that are plainly neither the packet nor the
+            # thing in it — the plinth is a display stand, not a mood board.
+            if _NOT_A_PRODUCT.search(url.rsplit("/", 1)[-1]):
+                continue
+            return {"url": url, "title": page.get("title") or name,
+                    "publisher": "Wikipedia", "attribution": "wikipedia.org"}
         return None
 
     # --------------------------------------------------------------- cut out
@@ -160,6 +181,12 @@ class PackshotClient:
         except Exception as exc:  # noqa: BLE001
             logger.warning("fal upload failed: %s", type(exc).__name__)
             return None
+
+
+_NOT_A_PRODUCT = re.compile(
+    r"(logo|wordmark|icon|map|chart|graph|diagram|plot|advert|billboard|poster"
+    r"|factory|plant|headquarters|building|store|shop|truck|van|stadium|portrait"
+    r"|signature|coat.of.arms|flag)", re.I)
 
 
 def _fold(text: str) -> str:

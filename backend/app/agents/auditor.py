@@ -41,6 +41,7 @@ from typing import Any, Awaitable, Callable
 from ..clients.cala import CalaClient
 from ..schemas import Concern, ConcernReport, Flag
 from .base import source_of
+from .depuration import normalise_name as _key
 
 Emit = Callable[[str, dict[str, Any]], Awaitable[None]]
 
@@ -92,19 +93,6 @@ _KIND: dict[Concern, str] = {
     Concern.tax: "regulatory",
 }
 
-_NOISE = re.compile(
-    r"\b(group|holdings?|company|co|corp|corporation|inc|ltd|limited|plc|llc|"
-    r"s\.?a\.?u?|s\.?l\.?|b\.?v\.?|n\.?v\.?|gmbh|kg|spa|ag|the)\b\.?", re.I)
-
-
-def _key(name: str) -> str:
-    """Normalise a company name enough to match 'Nestlé S.A.' against 'Nestle'."""
-    n = (name or "").lower()
-    n = n.replace("&", " and ")
-    for a, b in (("é", "e"), ("è", "e"), ("ñ", "n"), ("ü", "u"), ("ö", "o"), ("á", "a")):
-        n = n.replace(a, b)
-    n = _NOISE.sub(" ", n)
-    return re.sub(r"[^a-z0-9]+", " ", n).strip()
 
 
 def _matches(a: str, b: str) -> bool:

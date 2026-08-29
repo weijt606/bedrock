@@ -1,9 +1,17 @@
---extra-index-url https://pypi.aikido.io/162d885adfd24c861dcfb
-fastapi==0.115.6
+# The starlette advisory Aikido raised is closed by moving upstream, not by
+# pinning a vendor build. Their autofix pinned `0.41.3+aikido.7` from a private
+# index whose URL carries an account token — committing that puts a credential
+# in a public repository, and leaving it out breaks CI, which has no token. There
+# is no arrangement of that pin that is both safe and installable here.
+#
+# fastapi 0.115.6 capped starlette below 0.42, which is what held us on the
+# affected line in the first place. Lifting fastapi lifts the cap and skips the
+# affected range entirely. Verified on this codebase: 73 tests, openapi
+# generates, the server boots clean with no deprecation warnings.
+fastapi==0.141.1
+starlette==1.6.0
 uvicorn[standard]==0.34.0
 httpx==0.28.1
 pydantic==2.10.4
 pytest==8.3.4
 pytest-asyncio==0.25.0
-
-starlette==0.41.3+aikido.7

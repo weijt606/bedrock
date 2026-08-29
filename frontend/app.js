@@ -797,7 +797,6 @@ async function showProductForPhoto(file) {
 
 document.addEventListener('bedrock:frame', (event) => {
   const { type, payload } = event.detail;
-  if (type === 'accepted' && !productIsFromPhoto) return;
   // The resolved name beats what was typed: "cocacola" becomes "Coca-Cola".
   // It never beats a photograph.
   if (type === 'subject') showProductFor(payload.resolved_name);

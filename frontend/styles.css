@@ -161,22 +161,14 @@ h1 em { font-style: normal; color: var(--red); }
 
 /* ------------------------------------------------------------- core sample */
 .core { position: relative; align-self: stretch; min-height: 30rem; }
-/* The shot as taken, used until there is a real subject. It carries its own dark
-   studio ground, so its edges are masked into the paper. */
+/* The shot as taken, cut out, used until there is a real subject. No mask and no
+   studio ground: the file already has an alpha channel. */
 .core__default {
   position: absolute; left: 34%; bottom: 0; transform: translateX(-50%);
-  height: 92%; width: auto; max-width: none; object-fit: contain; object-position: bottom;
-  -webkit-mask-image:
-    linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%),
-    linear-gradient(to bottom, transparent 0, #000 7%, #000 93%, transparent 100%);
-  mask-image:
-    linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%),
-    linear-gradient(to bottom, transparent 0, #000 7%, #000 93%, transparent 100%);
-  -webkit-mask-composite: source-in; mask-composite: intersect;
-  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-  -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
-  transition: opacity .5s ease;
-  z-index: 3;
+  height: 94%; width: auto; max-width: none;
+  object-fit: contain; object-position: bottom;
+  filter: drop-shadow(0 24px 34px rgba(40, 30, 20, .22));
+  transition: opacity .5s ease; z-index: 3;
 }
 .core.is-live .core__default { opacity: 0; pointer-events: none; }
 .core__plinth, .core__product { opacity: 0; transition: opacity .5s ease; }
