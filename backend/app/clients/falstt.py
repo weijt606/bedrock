@@ -6,10 +6,13 @@ the model reads; it does not assert.
 from __future__ import annotations
 
 import base64
+import logging
 
 import httpx
 
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class FalClient:
@@ -36,5 +39,6 @@ class FalClient:
             if not text and isinstance(data.get("chunks"), list):
                 text = " ".join(c.get("text", "") for c in data["chunks"])
             return text.strip() or None
-        except Exception:
+        except Exception as exc:
+            logger.warning("fal transcription failed: %s", type(exc).__name__)
             return None
