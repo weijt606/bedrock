@@ -77,6 +77,9 @@ class Settings:
     probe_timeout_s: float = _f("PROBE_TIMEOUT_S", 90.0)
     total_budget_s: float = _f("TOTAL_BUDGET_S", 240.0)
     max_concurrent_probes: int = int(os.environ.get("MAX_CONCURRENT_PROBES", "4"))
+    # Cala 429s at roughly six rapid calls. Three retries at 4s, 8s, 16s covers a
+    # burst; beyond that the answer really is "come back later".
+    rate_limit_retries: int = int(os.environ.get("RATE_LIMIT_RETRIES", "3"))
     assay_timeout_s: float = _f("ASSAY_TIMEOUT_S", 12.0)
     planner_timeout_s: float = _f("PLANNER_TIMEOUT_S", 10.0)
 
