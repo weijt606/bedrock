@@ -68,11 +68,16 @@ is an opinion, is defamatory if wrong, and is not something this system emits.
                                       │      CALA      │  ← every fact
                                       │ knowledge graph│
                                       └───────┬────────┘
-                                              │ raw rows
-                                      ┌───────▼────────┐
-                                      │  ASSAY (Pioneer)│ ← kind, confidence,
-                                      │  fine-tuned SLM │   chain termination
-                                      └───────┬────────┘
+                                              │
+                        ┌─────────────────────┴─────────────────────┐
+                        │  typed rows                  markdown prose│
+                ┌───────▼────────┐                    ┌──────────────▼─┐
+                │ ASSAY (Pioneer)│                    │ READER (Pioneer)│
+                │ gliner2-base   │                    │ gliner2-large   │
+                │ what kind of   │                    │ where the spans │
+                │ thing is this? │                    │ are             │
+                └───────┬────────┘                    └──────────────┬─┘
+                        └─────────────────────┬─────────────────────┘
                                               │
                                       ┌───────▼────────┐
                                       │   EXTRACTOR    │ → CoreSample + SSE
@@ -89,7 +94,7 @@ is an opinion, is defamatory if wrong, and is not something this system emits.
 | `statute` | The regulations that dictate what the label must declare |
 | `recorder` | Litigation and sanctions listings, as filed |
 | `reader` | Turns Cala's *prose* answers back into structured layers with GLiNER2 |
-| `assay` | Pioneer's fine-tuned model classifies and scores every row |
+| `assay` | Decides what kind of thing each registry row names, and whether the chain ends there |
 | `extractor` | Folds everything into one `CoreSample` and computes the game numbers |
 
 ---
@@ -158,25 +163,66 @@ upgrades one stage rather than unlocking it:
 
 ---
 
-## The training loop nobody has to label
+## Where the small models sit
 
-The assay decides whether a row naming `Perfetti Van Melle` is a company or a
-person. Get it wrong and the dig ends one hop in, before Luxembourg.
+Cala tells us **who** owns a company. It does not tell us **what kind of thing
+the answer is** — and that decides whether the dig continues.
 
-Bedrock never labels that by hand. When the prospector walks one hop further,
-Cala has just *proved* what the previous node was — a name with shareholders was
-a company, and did not terminate the chain. That correction goes back to Pioneer
-via `POST /inferences/{id}/feedback`, so **the verified knowledge graph supervises
-the small model**, and every dig a player runs is a free labelled example.
+```
+[36.8s] layer   Egidio Perfetti   kind=unknown   terminal=False
+```
+
+That is a real frame. The human being at the end of the chain, and the system
+did not know it had arrived. The opposite failure is worse: read
+`Perfetti Van Melle` as a person and the chain ends one hop in, before
+Luxembourg. Read `Free float` as a company and you follow a *category* upwards
+into nonsense.
+
+`Perfetti Van Melle` and `Juan Roig` are the same shape to a rule — three
+capitalised words, no legal suffix. One is a family firm, the other a family
+member.
+
+So Bedrock puts a fine-tuned model in exactly two places, and both of them are
+about **shape, not truth**:
+
+| | Model | Decides |
+|---|---|---|
+| **assay** | `gliner2-base` | what kind of thing a registry row names, and whether ownership stops there |
+| **reader** | `gliner2-large` | where the entities are inside Cala's *prose* answers, which are often faster and more current than its tables |
+
+Narrow, high-volume, short strings, no reasoning required — an encoder answers in
+~100 ms at $0.15/M where a frontier model takes seconds at $5/M and is worse at
+it. Our whole latency budget is already spent on Cala, so this step cannot cost
+seconds.
+
+Neither model ever adds a fact. Every layer they touch still carries the Cala
+`Source` it came from, which is why a model can sit in the hot path without
+breaking the one rule.
+
+### The training set nobody labels
+
+When the prospector walks one hop further, Cala has just **proved** what the
+previous node was: a name with shareholders was a company, and did not terminate
+the chain. That correction goes back via `POST /inferences/{id}/feedback`.
 
 ```
 player digs  →  Cala answers  →  chain continues  →  correction posted
                      ↑                                       │
-                     └────────  specialist gets better  ◀─────┘
+                     └────────  specialist improves  ◀────────┘
 ```
 
-`backend/scripts/train_assay.py` bootstraps the same dataset from answers already
-sitting in the cache.
+**The verified knowledge graph supervises the small model.** Every dig anyone
+runs is a free labelled example, the system gets more accurate the more it is
+played, and there is no annotation step, ever. Corrections go out only where the
+model disagreed with what the chain went on to prove.
+
+The same principle referees the benchmark: gold labels come from the entity names
+Cala's *typed* endpoint returned, and each system is scored on recovering them
+from Cala's *prose*. No hand-labelling, and no model grading a model.
+
+Both models are optional — without a key the assay falls back to a deterministic
+classifier and the reader contributes nothing, so the typed ladder carries the
+dig. See [`docs/PIONEER.md`](docs/PIONEER.md).
 
 ---
 

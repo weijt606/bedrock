@@ -7,6 +7,92 @@ wrong more often.
 
 ---
 
+## How it works
+
+### The decision everything hinges on
+
+Cala tells us **who** owns a company. It does not tell us **what kind of thing
+the answer is** — and that is what decides whether the dig continues.
+
+From a real run:
+
+```
+[36.8s] layer   Egidio Perfetti   kind=unknown   terminal=False
+```
+
+That is the human being at the end of the chain, and the system did not know it
+had arrived. The opposite failure is worse. An earlier build read this row as a
+person:
+
+```
+[ 1.7s] layer   Perfetti Van Melle   kind=person   terminal=True   ← chain over
+```
+
+One hop in, and Luxembourg is never found.
+
+`Perfetti Van Melle` and `Juan Roig` are indistinguishable to a rule: three
+capitalised words, no legal suffix. One is a family firm, the other a family
+member. A share register also opens with rows like `Free float` and
+`Treasury shares`, which name a category rather than an owner — follow one of
+those upwards and the whole chain is nonsense.
+
+### Why a small model, and not a big one
+
+| | |
+|---|---|
+| Input | one short string — `Juan Roig` plus the columns Cala returned beside it |
+| Output | one of six labels, plus a yes/no |
+| Frequency | 3–30 rows per dig, every dig, every player |
+| Reasoning required | none — this is pattern recognition |
+
+Narrow, high-volume, short, no reasoning. That is where an encoder beats a
+decoder on accuracy, latency and cost simultaneously: `fastino/gliner2-base-v1`
+answers in ~100 ms at $0.15/M, against seconds and $5/M for a frontier model
+doing the same job badly. Our entire latency budget is already spent on Cala
+(16–75 s cold), so the classification step cannot cost seconds.
+
+Note what is in the `text` we send: not just the name, but the columns Cala
+returned beside it. `role: chairman` is the tell that a regex never sees.
+
+### The data flow
+
+```
+                    Cala  ─────────────────────────────┐
+                      │                                 │
+        knowledge/query│                  knowledge/search│
+        typed rows     │                  markdown prose  │
+                      ▼                                 ▼
+              ┌───────────────┐                 ┌───────────────┐
+              │  ASSAY        │                 │  READER       │
+              │  classify     │                 │  extract      │
+              │  gliner2-base │                 │  gliner2-large│
+              └───────┬───────┘                 └───────┬───────┘
+                      │ kind · confidence · terminal    │ spans
+                      ▼                                 ▼
+              ┌─────────────────────────────────────────────────┐
+              │           the ownership chain, with sources     │
+              └─────────────────────────────────────────────────┘
+```
+
+Both take *facts that already exist* and decide something about their **shape** —
+what type a row is, where a span begins. Neither adds a fact. That is what keeps
+the one rule intact while still putting a model in the hot path.
+
+### The boundary, stated exactly
+
+| | Allowed to | Never allowed to |
+|---|---|---|
+| **Cala** | state facts, with sources | — |
+| **OpenAI** | plan which questions to ask, reshape rows, read a brand name off a photograph | assert anything about a company |
+| **Pioneer** | say what kind of thing a row names, and where a span is | add a row, or change what one says |
+
+Enforced structurally: `source` is a required field on `Layer`, `SupplyNode`,
+`Statute` and `Flag`, so an agent cannot construct an unsourced fact. Layers the
+reader produces still carry the `knowledge/search` query that produced the
+paragraph they were read from.
+
+---
+
 ## 1. The reader — GLiNER2 doing the thing we were paying a frontier model to do
 
 ### The problem we did not know we had
@@ -180,56 +266,28 @@ without a Cala key.
 
 ---
 
-## Status
+## Both specialists are optional
 
-| | |
+Neither model is load-bearing for the pipeline, which is deliberate — a
+hackathon account, a rate limit or an outage should not be able to take the
+product down.
+
+| Without | What happens |
 |---|---|
-| Auth (`X-API-Key`) | ✅ verified against `/base-models` and `/felix/datasets` |
-| Model catalogue | ✅ read live |
-| Gold set | ✅ 15 cases built from Cala |
-| Inference (`/inference`, `/v1/chat/completions`) | ⛔ `403 payment_method_required` |
+| `PIONEER_API_KEY` | the assay falls back to a deterministic classifier that refuses to guess on ambiguous names, and the reader contributes nothing — the typed ladder carries the dig |
+| a trained job id | `MODEL_ASSAY` / `MODEL_READER` stay on the stock GLiNER2 encoders |
+| the extractor entirely | ownership still resolves, one hop at a time, from typed rows |
 
-Every inference endpoint on this account is billing-gated:
+What is lost is precision and speed, not function. The fallback is built never to
+make the expensive mistake — ending a chain early — so it returns `unknown` and
+keeps digging where the specialist would have decided.
 
-```
-403  No usable payment method is on file.
-     Add a card at https://agent.pioneer.ai/billing
-```
-
-Nothing in the code is waiting on that — the client, the reader, the feedback
-loop, the training pipeline and the benchmark are all written and tested. The
-moment credits land:
-
-```bash
-python scripts/bench.py run --systems A,B      # frontier vs zero-shot GLiNER2
-python scripts/train_assay.py generate
-python scripts/train_assay.py train
-python scripts/bench.py run                    # all three
-```
-
-Until then the product runs unaffected: the assay falls back to a deterministic
-classifier and the reader contributes nothing, so the typed ladder carries the
-dig.
-
----
-
-## Still to probe: `relations`
-
-Pioneer's docs say a schema may carry `entities`, `classifications`,
-`structures` and `relations` — but only the first two are specified. `relations`
-is the one we want most: Bedrock extracts *ownership relations*, not just spans,
-and a model that returns
+Swapping either model in is one environment variable:
 
 ```
-(Freixenet) --owned_by--> (Henkell & Co. Sektkellerei KG)
+MODEL_ASSAY=job_...     # the row classifier
+MODEL_READER=job_...    # the prose extractor
 ```
-
-hands us the chain directly instead of a bag of names to re-link afterwards.
-
-Rather than guess at an undocumented shape, `scripts/probe_schema.py` tries six
-candidate shapes against the live API and reports which one it accepts, dumping
-a full response for each. One run, a handful of tiny calls. Same method that
-mapped Cala's undocumented behaviour.
 
 ---
 
