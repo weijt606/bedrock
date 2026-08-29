@@ -74,26 +74,38 @@ class CalaClient:
 
         async with self._gate:
             t0 = time.perf_counter()
-            try:
-                r = await self._client.post(
-                    f"{settings.cala_base}/v1/{endpoint}",
-                    json={"input": text},
-                    headers={"X-API-KEY": settings.cala_key, "Content-Type": "application/json"},
-                    timeout=settings.probe_timeout_s,
-                )
-                elapsed = time.perf_counter() - t0
-                if r.status_code == 429:
-                    await asyncio.sleep(8)
-                    return CalaResult(query=text, endpoint=endpoint, latency_s=elapsed,
-                                      error="rate_limited")
-                r.raise_for_status()
-                payload = r.json()
-            except httpx.TimeoutException:
-                return CalaResult(query=text, endpoint=endpoint,
-                                  latency_s=time.perf_counter() - t0, error="timeout")
-            except Exception as exc:  # noqa: BLE001 - a failed probe becomes a Gap, never a 500
-                return CalaResult(query=text, endpoint=endpoint,
-                                  latency_s=time.perf_counter() - t0, error=str(exc)[:200])
+            # A 429 used to sleep eight seconds and *then* give up, which is the
+            # worst of both: the caller waits and still gets nothing back. It also
+            # meant the warm-up script could not do its job — a rate-limited query
+            # is not cached, so every run it warmed was one it had already paid
+            # for. Sleep and actually retry.
+            for attempt in range(settings.rate_limit_retries + 1):
+                try:
+                    r = await self._client.post(
+                        f"{settings.cala_base}/v1/{endpoint}",
+                        json={"input": text},
+                        headers={"X-API-KEY": settings.cala_key,
+                                 "Content-Type": "application/json"},
+                        timeout=settings.probe_timeout_s,
+                    )
+                    elapsed = time.perf_counter() - t0
+                    if r.status_code == 429:
+                        if attempt == settings.rate_limit_retries:
+                            return CalaResult(query=text, endpoint=endpoint,
+                                              latency_s=elapsed, error="rate_limited")
+                        # Cala's limit is a burst limit, so the wait grows: 4s, 8s,
+                        # 16s. Retrying at a fixed interval just re-enters the burst.
+                        await asyncio.sleep(4 * (2 ** attempt))
+                        continue
+                    r.raise_for_status()
+                    payload = r.json()
+                    break
+                except httpx.TimeoutException:
+                    return CalaResult(query=text, endpoint=endpoint,
+                                      latency_s=time.perf_counter() - t0, error="timeout")
+                except Exception as exc:  # noqa: BLE001 - a failed probe becomes a Gap, never a 500
+                    return CalaResult(query=text, endpoint=endpoint,
+                                      latency_s=time.perf_counter() - t0, error=str(exc)[:200])
 
         cache.put(kind, text, payload, round(elapsed, 2))
         return self._shape(text, endpoint, payload, elapsed, False)
