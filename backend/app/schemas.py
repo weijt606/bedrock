@@ -511,6 +511,7 @@ class EventType(str, Enum):
     gap = "gap"                    # a query came back empty
     siblings = "siblings"          # sibling brands landed
     score = "score"                # running score update
+    media = "media"          # an illustrative loop was queued or arrived
     done = "done"                  # full CoreSample follows
     error = "error"
 

@@ -19,6 +19,7 @@ from typing import Any
 
 import pathlib
 
+from fastapi.responses import FileResponse
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -27,6 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from . import cache
 from .clients.packshot import PackshotClient
 from .config import settings
+from . import media
 from .orchestrator import Orchestrator
 from .schemas import CoreSample, ImageDescriptionRequest, SampleRequest, StreamEvent, TranscriptionRequest
 
@@ -62,6 +64,46 @@ _pending: dict[str, SampleRequest] = {}
 async def _shutdown() -> None:
     await _orc.aclose()
     await _shots.aclose()
+
+
+@app.get("/v1/media/{name}.mp4")
+async def media_file(name: str) -> FileResponse:
+    """Serve a downloaded loop from disk, so the piece runs without internet."""
+    path = media.file_for_slug(name)
+    if path is None:
+        raise HTTPException(status_code=404, detail="No such loop")
+    return FileResponse(path, media_type="video/mp4")
+
+
+@app.get("/v1/samples/{sample_id}/media")
+async def sample_media(sample_id: str) -> dict:
+    """The illustrative loop, when there is one.
+
+    Separate from the sample on purpose: generated media is not evidence and
+    must never delay `editorial` or `done`. The interface polls this and shows
+    a card only once it says `ready`; every other answer means show nothing.
+    """
+    key = media.key_for(sample_id)
+    if not key:
+        return {"status": "unavailable", "url": None}
+
+    # A finished loop is on disk, so this answers instantly and survives every
+    # restart between now and the demo.
+    seen = media.recall(key) or {}
+    if seen.get("url"):
+        return {"status": "ready", "url": seen["url"]}
+    if not seen.get("request_id"):
+        return {"status": "unavailable", "url": None}
+
+    status, url = await _orc.video.poll(seen["model"], seen["request_id"])
+    if status == "ready" and url:
+        # Bring the bytes home before recording it. Holding fal's link is not
+        # the same as having the video: those URLs expire, and a demo runs on
+        # whatever network the venue has.
+        local = await media.download(key, url)
+        media.remember_url(key, media.local_url(key) if local else url)
+        return {"status": "ready", "url": media.local_url(key) if local else url}
+    return {"status": status, "url": url}
 
 
 @app.get("/v1/health", tags=["meta"])

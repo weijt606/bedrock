@@ -139,6 +139,21 @@
     return cards;
   }
 
+  /* The loop is illustrative and carries no facts, so it is appended rather
+   * than built in: if fal is slow, unconfigured or fails, the deck is simply
+   * one card shorter and nothing else changes. */
+  function pollMedia(sampleId, onReady, tries) {
+    if (!sampleId || tries <= 0) return;
+    fetch('/v1/samples/' + encodeURIComponent(sampleId) + '/media')
+      .then((r) => r.json())
+      .then((m) => {
+        if (m.status === 'ready' && m.url) { onReady(m.url); return; }
+        if (m.status === 'pending') window.setTimeout(
+          () => pollMedia(sampleId, onReady, tries - 1), 4000);
+      })
+      .catch(() => {});
+  }
+
   function mount(root, sample) {
     const cards = build(sample);
     const picks = {};
@@ -231,6 +246,19 @@
       }
       if (e.key === 'ArrowLeft') { e.preventDefault(); show(i - 1); }
     });
+
+    const sid = (sample.meta || {}).sample_id;
+    pollMedia(sid, (url) => {
+      if (cards.some((c) => c.kind === 'media')) return;
+      cards.splice(cards.length - 1, 0, {
+        kind: 'media',
+        html: '<p class="pc-eyebrow">Illustrative only. No fact was given to the model.</p>'
+          + '<video class="pc-video" src="' + esc(url) + '" autoplay loop muted playsinline></video>',
+      });
+      const pip = document.createElement('i');
+      root.querySelector('#pcSpine').appendChild(pip);
+      pips.push(pip);
+    }, 40);
 
     show(0);
   }

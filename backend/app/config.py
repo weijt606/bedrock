@@ -136,6 +136,19 @@ class Settings:
     def has_pioneer(self) -> bool:
         return bool(self.pioneer_key)
 
+    # --- fal video: an illustrative loop, never a carrier of facts ---------
+    # No default model on purpose: pick one in the fal playground and check the
+    # result by eye before wiring it, because an ugly loop is worse than none.
+    # Two endpoints, because the route depends on whether the reader gave us a
+    # photograph and fal exposes them as different models.
+    fal_video_t2v: str = os.environ.get("FAL_VIDEO_MODEL_T2V", "")
+    fal_video_i2v: str = os.environ.get("FAL_VIDEO_MODEL_I2V", "")
+    fal_video_seconds: int = int(os.environ.get("FAL_VIDEO_SECONDS", "6"))
+
+    @property
+    def has_video(self) -> bool:
+        return bool(self.fal_key and (self.fal_video_t2v or self.fal_video_i2v))
+
     @property
     def has_fal(self) -> bool:
         return bool(self.fal_key)
