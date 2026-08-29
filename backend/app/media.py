@@ -27,7 +27,7 @@ logger = logging.getLogger("bedrock.media")
 
 # Bump when PROMPT, PALETTE or the route logic in falvideo.py changes. Old loops
 # were made from a different brief and should not be served as if they were not.
-STYLE_VERSION = "1"
+STYLE_VERSION = "2"
 
 
 def key(product: str, image_b64: str | None = None) -> str:
