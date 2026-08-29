@@ -7,4 +7,5 @@ __pycache__/
 photos/
 demo/img/
 .pytest_cache/
-datasets/
+datasets/*
+!datasets/bench_ownership.json

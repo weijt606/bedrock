@@ -7,6 +7,92 @@ wrong more often.
 
 ---
 
+## How it works
+
+### The decision everything hinges on
+
+Cala tells us **who** owns a company. It does not tell us **what kind of thing
+the answer is** — and that is what decides whether the dig continues.
+
+From a real run:
+
+```
+[36.8s] layer   Egidio Perfetti   kind=unknown   terminal=False
+```
+
+That is the human being at the end of the chain, and the system did not know it
+had arrived. The opposite failure is worse. An earlier build read this row as a
+person:
+
+```
+[ 1.7s] layer   Perfetti Van Melle   kind=person   terminal=True   ← chain over
+```
+
+One hop in, and Luxembourg is never found.
+
+`Perfetti Van Melle` and `Juan Roig` are indistinguishable to a rule: three
+capitalised words, no legal suffix. One is a family firm, the other a family
+member. A share register also opens with rows like `Free float` and
+`Treasury shares`, which name a category rather than an owner — follow one of
+those upwards and the whole chain is nonsense.
+
+### Why a small model, and not a big one
+
+| | |
+|---|---|
+| Input | one short string — `Juan Roig` plus the columns Cala returned beside it |
+| Output | one of six labels, plus a yes/no |
+| Frequency | 3–30 rows per dig, every dig, every player |
+| Reasoning required | none — this is pattern recognition |
+
+Narrow, high-volume, short, no reasoning. That is where an encoder beats a
+decoder on accuracy, latency and cost simultaneously: `fastino/gliner2-base-v1`
+answers in ~100 ms at $0.15/M, against seconds and $5/M for a frontier model
+doing the same job badly. Our entire latency budget is already spent on Cala
+(16–75 s cold), so the classification step cannot cost seconds.
+
+Note what is in the `text` we send: not just the name, but the columns Cala
+returned beside it. `role: chairman` is the tell that a regex never sees.
+
+### The data flow
+
+```
+                                CALA
+                    ┌─────────────┴─────────────┐
+             knowledge/query            knowledge/search
+               typed rows                markdown prose
+                    │                           │
+                    ▼                           ▼
+                  ASSAY                      READER
+              gliner2-base                gliner2-large
+           what kind of thing            where the spans
+              is this row?                     are
+                    │                           │
+                    └─────────────┬─────────────┘
+                                  ▼
+                  the ownership chain, every layer
+                      still carrying its source
+```
+
+Both take *facts that already exist* and decide something about their **shape** —
+what type a row is, where a span begins. Neither adds a fact. That is what keeps
+the one rule intact while still putting a model in the hot path.
+
+### The boundary, stated exactly
+
+| | Allowed to | Never allowed to |
+|---|---|---|
+| **Cala** | state facts, with sources | — |
+| **OpenAI** | plan which questions to ask, reshape rows, read a brand name off a photograph | assert anything about a company |
+| **Pioneer** | say what kind of thing a row names, and where a span is | add a row, or change what one says |
+
+Enforced structurally: `source` is a required field on `Layer`, `SupplyNode`,
+`Statute` and `Flag`, so an agent cannot construct an unsourced fact. Layers the
+reader produces still carry the `knowledge/search` query that produced the
+paragraph they were read from.
+
+---
+
 ## 1. The reader — GLiNER2 doing the thing we were paying a frontier model to do
 
 ### The problem we did not know we had
@@ -64,7 +150,7 @@ python scripts/bench.py run            # A vs B vs C
 
 | | System |
 |---|---|
-| **A** | `gpt-4o-mini`, JSON-mode structured extraction — *the incumbent* |
+| **A** | a frontier decoder (`gpt-5.6-luna` by default), JSON-mode structured extraction — *the incumbent* |
 | **B** | `fastino/gliner2-large-v1`, zero-shot |
 | **C** | our fine-tuned job id |
 
@@ -136,6 +222,75 @@ rows. Real data first, synthetic data to fill the gaps it exposes.
 
 ---
 
+## What this account can actually train
+
+Read live from `GET /base-models` (27 models, 7 trainable):
+
+| Model | Type | $/M |
+|---|---|---|
+| `fastino/gliner2-base-v1` | encoder | 0.15 |
+| `fastino/gliner2-large-v1` | encoder | 0.15 |
+| `fastino/gliner2-multi-v1` | encoder | 0.15 |
+| `fastino/gliner2-multi-large-v1` | encoder | 0.15 |
+| `fastino/Fastino-Nemotron-3.5-Lightning-Financial` | decoder | 0.50 |
+| `fastino/Fastino-Nemotron-3.5-Lightning-Healthcare` | decoder | 0.50 |
+| `nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16` | decoder | 0.50 |
+
+Two notes. There is no Gemma 4 on this account, so the bonus goes to GLiNER2.
+And `Fastino-Nemotron-3.5-Lightning-Financial` is a trainable decoder already
+pointed at the financial domain — corporate registries, filings, shareholdings —
+which is the obvious next specialist after the reader lands.
+
+Frontier decoders are on the same key (`gpt-5.6-luna`, `gpt-5.5`,
+`claude-sonnet-5`, `claude-opus-5`, `GLM-5.2`, `Kimi-K3`, `DeepSeek-V4-Flash`),
+which is why the benchmark routes its baseline through Pioneer too: the
+specialist and the model it replaces go through the same gateway, the same
+client and the same network, so the comparison is not rigged by plumbing.
+
+---
+
+## The gold set, as built
+
+`scripts/bench.py build` against live Cala: **15 subjects, 68 gold entities**,
+median prose length 1,026 characters.
+
+It also measured the thing that motivated the whole reader agent:
+
+```
+median Cala latency:  prose 26.3s   vs   typed rows 47.1s
+Chupa Chups:          prose  0.8s   vs   typed rows 28.1s
+```
+
+`datasets/bench_ownership.json` is committed, so the benchmark is reproducible
+without a Cala key.
+
+---
+
+## Both specialists are optional
+
+Neither model is load-bearing for the pipeline, which is deliberate — a
+hackathon account, a rate limit or an outage should not be able to take the
+product down.
+
+| Without | What happens |
+|---|---|
+| `PIONEER_API_KEY` | the assay falls back to a deterministic classifier that refuses to guess on ambiguous names, and the reader contributes nothing — the typed ladder carries the dig |
+| a trained job id | `MODEL_ASSAY` / `MODEL_READER` stay on the stock GLiNER2 encoders |
+| the extractor entirely | ownership still resolves, one hop at a time, from typed rows |
+
+What is lost is precision and speed, not function. The fallback is built never to
+make the expensive mistake — ending a chain early — so it returns `unknown` and
+keeps digging where the specialist would have decided.
+
+Swapping either model in is one environment variable:
+
+```
+MODEL_ASSAY=job_...     # the row classifier
+MODEL_READER=job_...    # the prose extractor
+```
+
+---
+
 ## Commands
 
 ```bash
@@ -148,6 +303,7 @@ python scripts/train_assay.py models      # what the account can serve
 
 python scripts/bench.py build             # gold set from Cala
 python scripts/bench.py run               # frontier vs zero-shot vs specialist
+python scripts/probe_schema.py            # what does the schema field really accept?
 ```
 
 Then in `.env`:

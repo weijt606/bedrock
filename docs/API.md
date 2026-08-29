@@ -6,6 +6,18 @@ if this file and `/docs` ever disagree, `/docs` wins.
 
 Base URL in development: `http://localhost:8000`
 
+The API also serves the prototype front end from `/`, so there is one command to
+run and no CORS to configure:
+
+```bash
+cd backend && ./.venv/bin/uvicorn app.main:app --port 8000
+#  http://localhost:8000        the game
+#  http://localhost:8000/docs   this contract, live
+```
+
+`demo/index.html` is the reference implementation of everything below — if a
+frame is ambiguous here, look at how the demo renders it.
+
 ---
 
 ## Shape of a session
@@ -196,6 +208,39 @@ for p in "Chupa Chups" "Estrella Damm" "Freixenet" "Cola Cao" "Nutella" "Zara"; 
     -d "{\"kind\":\"text\",\"text\":\"$p\",\"depth\":4}" | jq -r '.subject.resolved_name'
 done
 ```
+
+---
+
+## What a real stream looks like
+
+`Chupa Chups`, depth 3, against live Cala with a partly warm cache:
+
+```
+[   0.0s] accepted
+[   1.0s] subject   Chupa Chups (Product)
+[   1.0s] probe     > Who ultimately owns Chupa Chups?          ← reader and ladder
+[   1.0s] probe     > Who owns Chupa Chups?                       start together
+[   2.2s] layer     Perfetti Van Melle                unknown  cc=None
+[   2.2s] probe     > Perfetti Van Melle.shareholders
+[   3.2s] layer     C+F Confectionery and Foods S.A.  company  cc=LU
+[   3.2s] probe     > C+F Confectionery and Foods S.A.shareholders
+[  36.8s] layer     Egidio Perfetti                   unknown  cc=None
+[  36.8s] siblings  32 brands
+[  36.8s] score     {"hops_to_human":3,"ends_in":"LU","siblings_count":32}
+[  36.8s] done      queries=3  cache_hits=2
+```
+
+Three things to design around, all visible above:
+
+1. **Two probes open at once.** The reader and the ownership ladder run
+   concurrently. Key your probe timers by `payload.query`, not by assuming one
+   is in flight at a time.
+2. **The gap between 3.2s and 36.8s is one cold Cala query.** That is the dig,
+   and it is why the probe line shows the real query with a running counter
+   rather than a spinner. Warm, the same sample finishes in about two seconds.
+3. **`kind` can be `unknown`.** Above, the person at the end of the chain was
+   not confidently classified, so `terminal` stayed false. Render `unknown`
+   honestly — do not coerce it to `company` or `person`.
 
 ---
 

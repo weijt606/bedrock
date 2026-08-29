@@ -16,9 +16,12 @@ import time
 import uuid
 from typing import Any
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+import pathlib
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import cache
 from .config import settings
@@ -138,6 +141,14 @@ async def sync_sample(req: SampleRequest) -> CoreSample:
         raise HTTPException(502, "dig produced no sample")
     _samples[final.meta.sample_id] = final
     return final
+
+
+# The prototype front end is served from the same origin, so there is one
+# command to run and no CORS to think about. Mounted last so it never shadows
+# an API route.
+_DEMO = pathlib.Path(__file__).resolve().parents[2] / "demo"
+if _DEMO.is_dir():
+    app.mount("/", StaticFiles(directory=str(_DEMO), html=True), name="demo")
 
 
 def _sse(ev: StreamEvent) -> str:

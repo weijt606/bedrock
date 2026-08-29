@@ -347,15 +347,19 @@ $("suggest").addEventListener("click", function(e){
   begin(d);
 });
 
-fetch("/api/health").then(function(r){ return r.json(); }).then(function(h){
-  live = !!(h && h.cala);
+fetch("/v1/health").then(function(r){ return r.json(); }).then(function(h){
+  live = !!(h && h.providers && h.providers.cala);
+  var bits = [];
+  if (h.cached_answers) bits.push("<b>" + h.cached_answers + "</b> answers already cached");
+  if (h.assay) bits.push("classifier: <b>" + h.assay.backend + "</b>");
   statusEl.innerHTML = live
-    ? 'Live &mdash; <b>'+h.cached+'</b> answers already cached. Anything not cached takes 16&ndash;75 seconds to excavate.'
-      + (h.vision ? '' : ' Photograph mode needs OPENAI_API_KEY on the server.')
-    : 'Running on bundled data. Start <b>server.py</b> to dig anything not on the list.';
+    ? "Live &mdash; " + bits.join(" &middot; ")
+      + ". Anything not cached takes 16&ndash;75 seconds to excavate."
+      + (h.providers.vision ? "" : " Photograph mode needs OPENAI_API_KEY on the server.")
+    : "Backend up but no Cala key. Running on the bundled five.";
 }).catch(function(){
-  statusEl.innerHTML = 'Running on bundled data &mdash; five objects, all excavated live and frozen. '
-    + 'Start <b>server.py</b> with a Cala key to dig anything else.';
+  statusEl.innerHTML = "Running on bundled data &mdash; five objects, excavated live and frozen. "
+    + "Start the backend (<b>uvicorn app.main:app</b>) to dig anything else.";
 });
 
 $("go").addEventListener("click", function(){ submit($("q").value); });
@@ -473,69 +477,120 @@ function replay(item, ccs, col){
   })();
 }
 
-/* live: build the chain for real, one Cala call at a time */
+/* live: POST /v1/samples, then render the SSE stream frame by frame.
+   This is the reference implementation for docs/API.md — the game layer needs
+   nothing from the backend that is not in a frame below. */
 function excavate(item, ccs, col){
-  var hops = [], step = 0, subject = item.name;
-  (function next(){
-    if(step >= 4){ item.hops = hops; return verdict(item, ccs); }
-    var q = step === 0 ? 'Who owns ' + subject + '?' : 'Who owns ' + subject + '?';
-    var probe = document.createElement('div');
-    probe.className = 'probe';
-    probe.innerHTML = '<span>&gt; '+q+'</span><span class="dots"></span><span class="t" data-t>0s</span>';
-    col.appendChild(probe);
-    probe.scrollIntoView({behavior:"smooth", block:"center"});
-    var t0 = Date.now();
-    var tick = setInterval(function(){
-      probe.querySelector('[data-t]').textContent = Math.round((Date.now()-t0)/1000)+'s';
-    }, 500);
+  var probeEl = null, tick = null, layers = [], gaps = [];
 
-    fetch("/api/query",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({input:q})})
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        clearInterval(tick); probe.remove();
-        var rows = (d.payload && d.payload.results) || [];
-        if(!rows.length){
-          col.insertAdjacentHTML('beforeend',
-            '<div class="layer"><p class="layer__step">Step '+(step+1)+'</p>'
-            + '<h2 class="layer__name">rows = 0</h2>'
-            + '<p class="layer__meta">Nobody has written this down anywhere Cala can read.</p>'
-            + '<p class="probe" style="opacity:.45"><span>&gt; '+q+'</span><span class="t">'+d.latency+'s</span></p></div>');
-          item.hops = hops; return setTimeout(function(){ verdict(item, ccs); }, 900);
-        }
-        var r0 = rows[0];
-        var name = r0.owner || r0.ultimate_owner || r0.name || r0.shareholder || JSON.stringify(r0);
-        var human = /family|clan/i.test(name) || !!r0.role || !!r0.ownership_percent;
-        var meta = rows.slice(0,7).map(function(r){
-          var n = r.owner || r.name || r.shareholder || '';
-          var extra = [r.role, r.ownership_percent ? r.ownership_percent+'%' : '',
-                       r.stake_percent ? r.stake_percent+'%' : '', r.type, r.relationship]
-                      .filter(Boolean).join(' &middot; ');
-          return n + (extra ? ' &mdash; ' + extra : '');
-        });
-        var h = {name:name, kind:human?"human":"co", cc:null, meta:meta, q:q, t:d.latency};
-        hops.push(h);
-        col.insertAdjacentHTML('beforeend', layerHTML(h, step, 4));
-        shade(step+1);
-        col.lastChild.scrollIntoView({behavior:"smooth", block:"center"});
-        step++;
-        if(human){ item.hops = hops; return setTimeout(function(){ verdict(item, ccs); }, 1100); }
-        subject = name;
-        setTimeout(next, 900);
-      })
-      .catch(function(){
-        clearInterval(tick); probe.remove();
-        item.hops = hops; verdict(item, ccs);
+  function clearProbe(){
+    if(tick){ clearInterval(tick); tick = null; }
+    if(probeEl){ probeEl.remove(); probeEl = null; }
+  }
+  function scrollLast(){
+    if(col.lastChild) col.lastChild.scrollIntoView({behavior:"smooth", block:"center"});
+  }
+
+  fetch("/v1/samples", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({kind:"text", text:item.name, depth:4,
+                          include:["ownership","siblings"]})
+  }).then(function(r){ return r.json(); }).then(function(job){
+    if(!job.events) throw new Error(job.detail || "no stream");
+    var es = new EventSource(job.events);
+
+    es.addEventListener("subject", function(e){
+      var s = JSON.parse(e.data).payload;
+      if(s.resolved_name && s.resolved_name !== item.name){
+        item.name = s.resolved_name;
+        col.insertAdjacentHTML("beforeend",
+          '<div class="layer"><p class="layer__step">Resolved</p>'
+          + '<h2 class="layer__name human">' + s.resolved_name + '</h2>'
+          + (s.description ? '<p class="layer__meta">' + s.description + '</p>' : '')
+          + '</div>');
+        scrollLast();
+      }
+    });
+
+    es.addEventListener("probe", function(e){
+      var p = JSON.parse(e.data).payload;
+      clearProbe();
+      probeEl = document.createElement("div");
+      probeEl.className = "probe";
+      probeEl.innerHTML = '<span>&gt; ' + p.query + '</span><span class="dots"></span>'
+                        + '<span class="t" data-t>0s</span>';
+      col.appendChild(probeEl);
+      probeEl.scrollIntoView({behavior:"smooth", block:"center"});
+      var t0 = Date.now();
+      tick = setInterval(function(){
+        var el = probeEl && probeEl.querySelector("[data-t]");
+        if(el) el.textContent = Math.round((Date.now()-t0)/1000) + "s";
+      }, 500);
+    });
+
+    es.addEventListener("layer", function(e){
+      var L = JSON.parse(e.data).payload;
+      clearProbe();
+      layers.push(L);
+      var h = {name:L.name, kind:L.kind, cc:L.country, meta:L.detail || [],
+               q:L.source.query, t:L.source.latency_s,
+               addr:L.address ? L.address.replace(/, /g, "<br>") : null};
+      col.insertAdjacentHTML("beforeend", layerHTML(h, layers.length-1, 4));
+      shade(layers.length);
+      if(L.country && ccs[ccs.length-1] !== L.country){
+        ccs.push(L.country); trail.innerHTML = trailHTML(ccs);
+      }
+      scrollLast();
+    });
+
+    es.addEventListener("gap", function(e){
+      var g = JSON.parse(e.data).payload;
+      clearProbe();
+      gaps.push(g.query);
+      col.insertAdjacentHTML("beforeend",
+        '<div class="layer"><p class="layer__step">Nothing on the record</p>'
+        + '<h2 class="layer__name">rows = 0</h2>'
+        + '<p class="layer__meta">Nobody has written this down anywhere Cala can read.</p>'
+        + '<p class="probe" style="opacity:.45"><span>&gt; ' + g.query + '</span>'
+        + '<span class="t">' + (g.latency_s || 0) + 's</span></p></div>');
+      scrollLast();
+    });
+
+    es.addEventListener("done", function(e){
+      clearProbe(); es.close();
+      var sample = JSON.parse(e.data).payload;
+      item.hops = sample.layers.map(function(L){
+        return {name:L.name, kind:L.kind, cc:L.country, meta:L.detail || [],
+                q:L.source.query, t:L.source.latency_s};
       });
-  })();
+      if(sample.siblings && sample.siblings.length){
+        item.also = {label:"Everything else under the same owner",
+                     n:sample.siblings.length, items:sample.siblings, you:item.name};
+      }
+      item.zero = (sample.gaps || []).map(function(g){ return g.query; });
+      verdict(item, sample.score.countries && sample.score.countries.length
+                    ? sample.score.countries : ccs, sample);
+    });
+
+    es.addEventListener("error", function(){
+      clearProbe(); es.close();
+      item.hops = item.hops || [];
+      verdict(item, ccs);
+    });
+  }).catch(function(err){
+    clearProbe();
+    col.insertAdjacentHTML("beforeend",
+      '<div class="layer"><p class="layer__step">Backend unreachable</p>'
+      + '<h2 class="layer__name">' + String(err.message || err) + '</h2></div>');
+  });
 }
 
 /* ---------- verdict ---------- */
-function verdict(item, ccs){
+function verdict(item, ccs, sample){
   var hops = item.hops || [];
-  var endCC = null;
-  for(var i=hops.length-1;i>=0;i--){ if(hops[i].cc){ endCC = hops[i].cc; break; } }
-  var depth = hops.length;
+  var endCC = sample ? sample.score.ends_in : null;
+  if(!endCC){ for(var i=hops.length-1;i>=0;i--){ if(hops[i].cc){ endCC = hops[i].cc; break; } } }
+  var depth = sample ? sample.score.hops_to_human : hops.length;
   var bandGuessed = state.guessDepth;
   var band = depth<=2 ? "1-2" : (depth<=4 ? "3-4" : "5+");
   var okCC = endCC ? (state.guessCC === endCC) : null;

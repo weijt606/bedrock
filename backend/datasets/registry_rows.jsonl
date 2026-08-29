@@ -1,0 +1,101 @@
+{"text": "Nayarit Participations SA", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "SPDG (Société Anonyme de Participation et de Gestion)", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Free float", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Treasury shares", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Henkell & Co. Sektkellerei KG (Oetker Group) | relationship: majority owner | stake_percent: 50.7", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Ferrer family (chairman José Ferrer) | relationship: minority shareholder | stake_percent: 42", "entity_kind": "family", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "Bonet clan | relationship: minority shareholder | stake_percent: 7.3", "entity_kind": "family", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "Demetrio Carceller Arce | relationship: investor and board member", "entity_kind": "unknown", "chain_terminates": "no", "_confidence": 0.5}
+{"text": "IKEA Industry (formerly Swedwood)", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Vakarų Medienos Grupė (VMG)", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Freda", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Yoovidhya family | ownership_percent: 51%", "entity_kind": "family", "chain_terminates": "yes", "_confidence": 0.92}
+{"text": "Mateschitz family | ownership_percent: 49%", "entity_kind": "family", "chain_terminates": "yes", "_confidence": 0.92}
+{"text": "Pontegadea Inversiones, S.L. | ownership_percent: 50.010%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.94}
+{"text": "Partler Participaciones, S.L.U. (Partler 2006) | ownership_percent: 9.284%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.94}
+{"text": "Sandra Ortega Mera | ownership_percent: 5.05%", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "Escotet Family Office, S.L.", "entity_kind": "family", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "Marta Ortega Pérez", "entity_kind": "unknown", "chain_terminates": "no", "_confidence": 0.5}
+{"text": "C+F Confectionery and Foods S.A. | type: direct parent | address: 10, Rue Henri M. Schnadt, L-2530 Luxembourg", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "C + F Nederland B.V. | type: additional Dutch-registered shareholder", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Perfetti family | type: controlling family", "entity_kind": "family", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "Ferrero family", "entity_kind": "family", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "Nayarit Participations | type: Controlling Family Shareholder | ownership_percent: ~50.6%", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "Société Anonyme de Participation et de Gestion (SPDG) | type: Controlling Family Shareholder | ownership_percent: ~10.6–10.9%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "D'Ieteren Group | type: Treasury Shares | ownership_percent: ~1.2%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.94}
+{"text": "Capital Research and Management Company | type: Institutional | ownership_percent: ~1.4–1.6%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.94}
+{"text": "Norges Bank Investment Management | type: Institutional | ownership_percent: ~0.8–1.0%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "UBS Asset Management AG | type: Institutional | ownership_percent: ~0.6–0.8%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "FMR LLC (Fidelity) | type: Institutional | ownership_percent: ~0.65%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.94}
+{"text": "Polaris Capital Management | type: Institutional | ownership_percent: ~0.5–0.6%", "entity_kind": "fund", "chain_terminates": "no", "_confidence": 0.8}
+{"text": "Amundi Asset Management | type: Institutional | ownership_percent: ~0.5%", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "KBC Asset Management | type: Institutional | ownership_percent: ~0.4%", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "Degroof Petercam Asset Management | type: Institutional | ownership_percent: ~0.3%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "Geode Capital Management | type: Institutional | ownership_percent: ~0.3%", "entity_kind": "fund", "chain_terminates": "no", "_confidence": 0.8}
+{"text": "JP Morgan Asset Management | type: Institutional | ownership_percent: ~0.2%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "Inter IKEA Foundation | role: Primary custodian of the Inter IKEA Group; owns the IKEA brand, concept, and franchise system through its subsidiary Inter IKEA Holding B.V.", "entity_kind": "foundation", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "Interogo Foundation | role: Member of the Inter IKEA Foundation and Inter IKEA Group; governs the investment side of the business; linked to the Kamprad family", "entity_kind": "foundation", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "INGKA Foundation | role: Owns INGKA Holding B.V., which operates the IKEA retail chain as a franchisee", "entity_kind": "foundation", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "Ben & Jerry's", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Dr. h.c. August Oetker | role: former General Partner (1981–2009) and later Chairman of the Advisory Board; shareholder", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "Richard Oetker | role: former Chairman of the Executive Board of Dr. August Oetker Nahrungsmittel KG; shareholder", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "Christian Oetker | role: involved in the food division's market research", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "Rosely Schweizer | role: personally liable shareholder for Henkell & Söhnlein", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "Carl Oetker | role: General Partner", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "Ute Gerbaulet | role: group management", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "Dr. Niels Lorenz | role: group management", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "Philip Oetker | role: member of the Advisory Board", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "Yoovidhya family", "entity_kind": "family", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "Mark Mateschitz (son of co-founder Dietrich Mateschitz)", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Fides Trustees SA", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Nestlé", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Nespresso", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Ferrero Group", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "BlackRock, Inc. | ownership_percent: 7.7%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.94}
+{"text": "The Vanguard Group, Inc.", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Mondelez International, Inc.", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Inditex", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Retail / individual investors | ownership_percent: ~60%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "Institutional investors | ownership_percent: ~40%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "UBS Asset Management AG | ownership_percent: ~5.6%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "Second-largest holder | ownership_percent: ~5.2%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "Third-largest holder | ownership_percent: ~4.4%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "Amundi | ownership_percent: ~2.8%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.66}
+{"text": "Stichting INGKA Foundation | role: Owns Ingka Group (largest IKEA retailer, ~90% of stores)", "entity_kind": "foundation", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "Inter IKEA Foundation | role: Custodian of the IKEA Concept; owns brand & IP via Inter IKEA Systems B.V.", "entity_kind": "foundation", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "Interogo Foundation | role: Linked to Inter IKEA Group via Interogo Holding", "entity_kind": "foundation", "chain_terminates": "yes", "_confidence": 0.86}
+{"text": "Industria de Diseño Textil, S.A. (Inditex, S.A.)", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "OETKER Nahrungsmittel und Getränke Holding GmbH | role: Direct parent / Limited partner (Kommanditist)", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.94}
+{"text": "Oetker Collection KG | role: Direct and ultimate parent", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.94}
+{"text": "Wellington Management Co. LLP", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "BlackRock Fund Advisors", "entity_kind": "fund", "chain_terminates": "no", "_confidence": 0.74}
+{"text": "BlackRock Advisors (UK) Ltd.", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Legal & General Investment Management Ltd.", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Trian Fund Management LP", "entity_kind": "fund", "chain_terminates": "no", "_confidence": 0.74}
+{"text": "Artisan Partners LP", "entity_kind": "fund", "chain_terminates": "no", "_confidence": 0.74}
+{"text": "BlackRock Investment Management (UK) Ltd.", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "SSgA Funds Management, Inc. (State Street)", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Clearstream Banking SA", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Hartford Dividend and Growth Fund", "entity_kind": "fund", "chain_terminates": "no", "_confidence": 0.74}
+{"text": "Hartford Balanced Income Fund", "entity_kind": "fund", "chain_terminates": "no", "_confidence": 0.74}
+{"text": "Hartford Equity Income Fund", "entity_kind": "fund", "chain_terminates": "no", "_confidence": 0.74}
+{"text": "Fidelity Equity Dividend Income Fund", "entity_kind": "fund", "chain_terminates": "no", "_confidence": 0.74}
+{"text": "Vanguard Total International Stock Index Fund", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Vanguard Developed Markets Index Fund", "entity_kind": "fund", "chain_terminates": "no", "_confidence": 0.74}
+{"text": "Vanguard Dividend Growth Fund", "entity_kind": "fund", "chain_terminates": "no", "_confidence": 0.74}
+{"text": "Perfetti Van Melle", "entity_kind": "unknown", "chain_terminates": "no", "_confidence": 0.5}
+{"text": "Dr. August Oetker KG | type: Muttergesellschaft", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Egidio Perfetti | role: Chairman of C+F Confectionery and Foods S.A. and Perfetti Van Melle Group", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "Distribution & Marketing GmbH | ownership_percent: 49%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.94}
+{"text": "TC Agro Trading Company Ltd. | ownership_percent: 49%", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.94}
+{"text": "Fides Trustees | ownership_percent: 2%", "entity_kind": "person", "chain_terminates": "yes", "_confidence": 0.82}
+{"text": "Ferrero family | ownership_percent: 100%", "entity_kind": "family", "chain_terminates": "yes", "_confidence": 0.92}
+{"text": "Giovanni Ferrero", "entity_kind": "unknown", "chain_terminates": "no", "_confidence": 0.5}
+{"text": "Unilever", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Red Bull", "entity_kind": "unknown", "chain_terminates": "no", "_confidence": 0.5}
+{"text": "Amancio Ortega", "entity_kind": "unknown", "chain_terminates": "no", "_confidence": 0.5}
+{"text": "Institutional investors", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Public float", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "D'Ieteren Group", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.88}
+{"text": "Nutella", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
+{"text": "Moleskine", "entity_kind": "company", "chain_terminates": "no", "_confidence": 0.6}
