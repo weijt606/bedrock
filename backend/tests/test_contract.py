@@ -345,3 +345,23 @@ def test_reader_layers_are_marked_provisional():
 
     assert [l.name for l in layers] == ["Nestlé S.A."]   # subject, dupe, placeholder all dropped
     assert all(l.provisional for l in layers)
+
+
+def test_search_citations_resolve_to_documents_a_reader_can_open():
+    """`explainability` names fact ids; `context[].origins[].document.url` resolves
+    them. Reading only the first leaves every citation a query string with nothing
+    to click, which is not a citation."""
+    from app.clients.cala import CalaClient
+    res = CalaClient._shape("q", "knowledge/search", {
+        "content": "…",
+        "explainability": [{"content": "…", "references": ["b0595ee6"]}],
+        "context": [{"id": "b0595ee6", "content": "…", "origins": [
+            {"source": {"name": "wikiwand.com", "url": "https://www.wikiwand.com/en/articles/X"},
+             "document": {"name": "X", "url": "https://www.wikiwand.com/en/articles/X"}},
+            {"document": {"name": "LEI", "url": "https://search.gleif.org/#/record/8755"}},
+            {"document": {"name": "no url"}},
+        ]}],
+    }, 0.8, False)
+    assert res.documents == ["https://www.wikiwand.com/en/articles/X",
+                             "https://search.gleif.org/#/record/8755"]
+    assert "b0595ee6" in res.fact_ids

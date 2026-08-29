@@ -2,7 +2,14 @@
 
 Measured behaviour this client is built around (see docs/AGENTS.md):
   * POST /v1/knowledge/query   -> {"results": [ ...typed rows... ]}
-  * POST /v1/knowledge/search  -> {"content": md, "explainability": [{content, references}]}
+  * POST /v1/knowledge/search  -> {"content": md,
+                                   "explainability": [{content, references}],
+                                   "context": [{id, content, origins:[{source, document,
+                                                breadcrumb}]}]}
+    `context` is where the citations actually live. `explainability` names fact
+    ids; `context[].origins[].document.url` resolves them to documents a reader
+    can open - GLEIF LEI records, company registries, trade press. Without this
+    every citation we render is a query string and nothing a person can click.
   * POST /v1/entities/{id}     -> properties, each carrying its own `sources` array
   * GET  /v1/entities?name=X   -> fuzzy *string* match, not semantic
   * Cold 16-75s, warm ~0.5s. Rate limited at roughly six rapid calls.
@@ -112,6 +119,24 @@ class CalaClient:
             for ref in (item or {}).get("references") or []:
                 if ref not in res.fact_ids:
                     res.fact_ids.append(ref)
+
+        # Resolve fact ids to documents a reader can actually open.
+        for item in payload.get("context") or []:
+            if not isinstance(item, dict):
+                continue
+            fid = item.get("id")
+            if isinstance(fid, str) and fid not in res.fact_ids:
+                res.fact_ids.append(fid)
+            for origin in item.get("origins") or []:
+                if not isinstance(origin, dict):
+                    continue
+                for key in ("document", "source"):
+                    ref = origin.get(key)
+                    url = ref.get("url") if isinstance(ref, dict) else None
+                    if isinstance(url, str) and url.startswith("http") \
+                            and url not in res.documents:
+                        res.documents.append(url)
+                        break
 
         # rows sometimes carry a comma-joined `source` column of fact ids
         for row in res.rows:
