@@ -524,3 +524,27 @@ def test_origin_is_asked_for_rather_than_read_out_of_prose():
     assert _iso("Türkiye") == "TR"
     # an unknown name yields nothing rather than a guess
     assert _iso("Atlantis") is None and _iso(None) is None
+
+
+def test_the_send_button_says_working_for_as_long_as_the_work_takes():
+    """A cold trace runs 30-90 seconds. A spinner would claim progress we cannot
+    measure and a dead button looks broken, so the button breathes instead —
+    which promises only "still going", the honest amount.
+
+    It stops on the first layer rather than on `done`, because by then the reader
+    has a chain arriving and no longer needs a button to tell them anything.
+    """
+    fe = pathlib.Path(__file__).parents[2] / "frontend"
+    js = (fe / "app.js").read_text()
+    css = (fe / "styles.css").read_text()
+
+    assert "working(true)" in js
+    assert "if (t === 'layer' || t === 'done' || t === 'error') working(false);" in js
+    # a second submit while one is in flight must not start another
+    assert "sendButton.classList.contains('is-working')) return;" in js
+
+    assert "--go:" in css and ".send-button.is-working" in css
+    assert "@keyframes sb-breathe" in css
+    # and it must hold still for anyone who asked it to
+    reduced = css[css.rindex("@media (prefers-reduced-motion: reduce)"):]
+    assert ".send-button.is-working { animation: none" in css

@@ -424,10 +424,32 @@ removePhoto.addEventListener('click', removeSelectedPhoto);
 voiceButton.addEventListener('click', startRecording);
 cancelRecording.addEventListener('click', () => stopRecording(false));
 stopRecordingButton.addEventListener('click', () => stopRecording(true));
+// The button stays green and breathes for as long as the trace is running. A
+// cold trace is 30-90 seconds: a spinner would claim progress we cannot measure,
+// and a dead button looks broken. Breathing promises only "still going", which
+// is the honest amount. It stops on the first layer, because by then the reader
+// has something to watch that is not a button.
+const sendButton = form.querySelector('.send-button');
+const working = (on) => {
+  if (!sendButton) return;
+  sendButton.classList.toggle('is-working', on);
+  sendButton.setAttribute('aria-busy', String(on));
+  if (!on) {
+    sendButton.classList.add('is-done');
+    window.setTimeout(() => sendButton.classList.remove('is-done'), 600);
+  }
+};
+document.addEventListener('bedrock:frame', (e) => {
+  const t = e.detail.type;
+  if (t === 'layer' || t === 'done' || t === 'error') working(false);
+});
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (isRecording) { showNotice('Stop recording when you are ready.'); return; }
+  if (sendButton && sendButton.classList.contains('is-working')) return;
   try {
+    working(true);
     resetResponse();
     let payload;
     if (subject.value.trim()) {
@@ -435,6 +457,7 @@ form.addEventListener('submit', async (event) => {
     } else if (selectedPhoto) {
       payload = { kind: 'image', image_b64: await toBase64(selectedPhoto), mime: selectedPhoto.type, depth: 4 };
     } else {
+      working(false);
       subject.focus();
       showNotice('Start with a food, product, brand, voice note or photo.');
       return;
@@ -442,6 +465,7 @@ form.addEventListener('submit', async (event) => {
     await submitToBedrock(payload);
     showNotice('Bedrock has started your trace.');
   } catch (error) {
+    working(false);
     console.error('[Bedrock] request failed', error);
     showNotice('Bedrock is not reachable. Check that the local server is running.');
     showJson('Connection issue', {

@@ -10,6 +10,9 @@
   --ink:        #111111;
   --ink-soft:   #6b6660;
   --red:        #f5333f;
+  /* The one green on the page, and it means one thing: go. */
+  --go:         #1f9d55;
+  --go-deep:    #17703d;
   --line:       #ddd7cc;
   --sans: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -108,10 +111,58 @@ h1 em { font-style: normal; color: var(--red); }
 .icon-button img { display: block; }
 
 .send-button {
-  width: 3.1rem; height: 3.1rem; background: var(--ink); margin-left: .25rem;
+  width: 3.1rem; height: 3.1rem; margin-left: .25rem; position: relative;
+  background: var(--go);
+  box-shadow: 0 1px 2px rgba(23, 112, 61, .28);
 }
 .send-button img { filter: invert(1); }
-.send-button:hover, .send-button:focus-visible { transform: scale(1.05); }
+.send-button:hover, .send-button:focus-visible {
+  transform: scale(1.05); background: var(--go-deep);
+}
+.send-button:active { transform: scale(.94); }
+
+/* Working. A cold trace runs 30-90 seconds, so the button has to keep saying
+   something for a long time — a spinner would claim progress it cannot measure,
+   and a dead button would look broken. Breathing says only "still going", which
+   is the honest amount to promise.
+
+   The ring behind it pulses on its own beat so the two never land together and
+   settle into something mechanical. */
+.send-button.is-working {
+  cursor: progress; background: var(--go-deep);
+  animation: sb-breathe 1.9s ease-in-out infinite;
+}
+.send-button.is-working img { animation: sb-fade 1.9s ease-in-out infinite; }
+.send-button.is-working::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 999px;
+  border: 1.5px solid var(--go);
+  animation: sb-ring 2.6s cubic-bezier(.4, 0, .3, 1) infinite;
+}
+.send-button.is-working:hover { transform: none; }
+
+@keyframes sb-breathe {
+  0%, 100% { transform: scale(1);    box-shadow: 0 1px 2px rgba(23, 112, 61, .28); }
+  50%      { transform: scale(1.06); box-shadow: 0 4px 16px rgba(31, 157, 85, .38); }
+}
+@keyframes sb-fade { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@keyframes sb-ring {
+  0%   { transform: scale(.9);  opacity: .7; }
+  70%  { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* Done. One settle, then back to go — so finishing is felt without a message. */
+.send-button.is-done { animation: sb-settle .55s cubic-bezier(.2, .7, .3, 1); }
+@keyframes sb-settle {
+  0%   { transform: scale(1.12); background: var(--go); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .send-button.is-working { animation: none; opacity: .8; }
+  .send-button.is-working::after, .send-button.is-working img { animation: none; }
+  .send-button.is-done { animation: none; }
+}
 .send-button--wide {
   width: auto; height: auto; padding: .85rem 1.7rem; color: var(--paper);
   font-family: var(--sans); font-size: .82rem; font-weight: 600;
