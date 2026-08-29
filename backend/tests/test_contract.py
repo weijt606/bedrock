@@ -100,3 +100,40 @@ def test_row_text_carries_the_columns_that_disambiguate():
     from app.clients.pioneer import row_text
     t = row_text("Juan Roig", {"role": "executive chairman", "ownership_percent": "50.66%"})
     assert "Juan Roig" in t and "role" in t and "50.66" in t
+
+
+# --------------------------------------------------------------------------- #
+#  reader / extraction
+# --------------------------------------------------------------------------- #
+
+def test_extraction_parser_rejects_labels_it_does_not_know():
+    """A model returning something off-schema must yield nothing, never a guess."""
+    from app.clients.pioneer import _parse_entities
+    out = _parse_entities({"result": {"entities": [
+        {"text": "Perfetti Van Melle", "label": "company", "score": 0.91},
+        {"text": "nonsense", "label": "wormhole", "score": 0.99},
+    ]}})
+    assert [e["text"] for e in out["entities"]] == ["Perfetti Van Melle"]
+
+
+def test_extraction_parser_deduplicates():
+    from app.clients.pioneer import _parse_entities
+    out = _parse_entities({"result": {"entities": [
+        {"text": "Oetker family", "label": "family", "score": 0.9},
+        {"text": "oetker family", "label": "family", "score": 0.8},
+    ]}})
+    assert len(out["entities"]) == 1
+
+
+def test_bench_scoring_treats_a_longer_legal_name_as_a_hit():
+    """"Henkell & Co. Sektkellerei KG" and "Henkell & Co." are one company;
+    scoring that as a miss would flatter whichever system is terser."""
+    import importlib.util, pathlib
+    spec = importlib.util.spec_from_file_location(
+        "bench", pathlib.Path(__file__).parents[1] / "scripts" / "bench.py")
+    bench = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bench)  # type: ignore[union-attr]
+    tp, fp, fn = bench.score(
+        [{"text": "Henkell & Co. Sektkellerei KG"}, {"text": "Oetker family"}],
+        ["Henkell & Co.", "Oetker family"])
+    assert (tp, fn) == (2, 0)

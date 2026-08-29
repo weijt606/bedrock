@@ -23,8 +23,8 @@ import time
 import uuid
 from typing import Any, AsyncIterator
 
-from .agents import (ExtractorAgent, IntakeAgent, ProspectorAgent, RecorderAgent,
-                     StatuteAgent, SurveyorAgent)
+from .agents import (ExtractorAgent, IntakeAgent, ProspectorAgent, ReaderAgent,
+                     RecorderAgent, StatuteAgent, SurveyorAgent)
 from .clients import CalaClient, FalClient, LLMClient, PioneerClient
 from .config import settings
 from .schemas import (CoreSample, EventType, Flag, Gap, Layer, SampleRequest,
@@ -38,6 +38,7 @@ class Orchestrator:
         self.pioneer = PioneerClient()
         self.fal = FalClient()
         self.intake = IntakeAgent(self.cala, self.llm, self.fal)
+        self.reader = ReaderAgent(self.cala, self.pioneer)
         self.prospector = ProspectorAgent(self.cala, self.pioneer)
         self.surveyor = SurveyorAgent(self.cala)
         self.statute = StatuteAgent(self.cala)
@@ -95,6 +96,19 @@ class Orchestrator:
         flags: list[Flag] = []
         gaps: list[Gap] = []
         siblings: list[str] = []
+        prose_layers: list[Layer] = []
+
+        async def read_prose() -> None:
+            """The fast path. Cala answers `knowledge/search` in about a second
+            where the typed ladder takes a minute, and the extractor turns that
+            paragraph into layers. Whatever it finds is on screen long before the
+            first ladder hop lands; the ladder then supersedes it with rows that
+            carry stakes and addresses."""
+            if "ownership" not in req.include:
+                return
+            ls, gs = await self.reader.run(name, lambda k, p: emit(k, p, self.reader.name))
+            prose_layers.extend(ls)
+            gaps.extend(gs)
 
         async def dig_chain() -> None:
             ls, gs = await self.prospector.run(
@@ -140,7 +154,8 @@ class Orchestrator:
             flags.extend(fs)
             gaps.extend(gs)
 
-        work = asyncio.gather(dig_chain(), dig_supply(), dig_statute(), dig_flags())
+        work = asyncio.gather(read_prose(), dig_chain(), dig_supply(),
+                              dig_statute(), dig_flags())
         budget = asyncio.ensure_future(asyncio.wait_for(work, settings.total_budget_s))
 
         # drain the queue while the crew works
@@ -168,6 +183,8 @@ class Orchestrator:
             yield frame(kind, payload, agent)
 
         # ---- 4. extract --------------------------------------------------- #
+        if not layers and prose_layers:
+            layers = prose_layers
         sources = [l.source for l in layers] + [s.source for s in supply] \
             + [s.source for s in statutes] + [f.source for f in flags]
         sample = self.extractor.build(
@@ -175,11 +192,14 @@ class Orchestrator:
             supply=supply, statutes=statutes, flags=flags, siblings=siblings, gaps=gaps,
             queries_run=len(sources) + len(gaps),
             cache_hits=sum(1 for s in sources if s.cached),
-            agents=["intake", "prospector", "surveyor", "statute", "recorder", "extractor"],
+            agents=["intake", "reader", "prospector", "surveyor", "statute",
+                    "recorder", "extractor"],
             models={
                 "planner": settings.model_planner if settings.has_openai else "static-ladder",
                 "vision": settings.model_vision if settings.has_openai else "unavailable",
                 "assay": self.pioneer.backend,
+                "reader": (settings.model_reader if settings.has_pioneer
+                           else "unavailable"),
                 "stt": settings.fal_stt_model if settings.has_fal else "unavailable",
                 "facts": "cala/knowledge",
             },

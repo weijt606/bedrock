@@ -1,6 +1,7 @@
 """The dig crew.
 
     intake      any input          -> a Subject
+    reader      Cala prose         -> structured layers, via GLiNER2
     prospector  a Subject          -> the ownership chain, hop by hop
     surveyor    a Subject          -> manufacturers, co-packers, shared factories
     statute     a Subject          -> the laws that govern what its label must say
@@ -14,10 +15,11 @@ emit an unsourced fact.
 """
 from .intake import IntakeAgent
 from .prospector import ProspectorAgent
+from .reader import ReaderAgent
 from .surveyor import SurveyorAgent
 from .statute import StatuteAgent
 from .recorder import RecorderAgent
 from .extractor import ExtractorAgent
 
-__all__ = ["IntakeAgent", "ProspectorAgent", "SurveyorAgent", "StatuteAgent",
+__all__ = ["IntakeAgent", "ReaderAgent", "ProspectorAgent", "SurveyorAgent", "StatuteAgent",
            "RecorderAgent", "ExtractorAgent"]

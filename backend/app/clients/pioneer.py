@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -51,6 +52,32 @@ ASSAY_SCHEMA: dict[str, Any] = {
         {"task": "entity_kind", "labels": KINDS},
         {"task": "chain_terminates", "labels": ["yes", "no"]},
     ]
+}
+
+# ---------------------------------------------------------------------------- #
+#  the extraction task
+# ---------------------------------------------------------------------------- #
+#
+# Cala answers `knowledge/search` in prose, and that prose is frequently richer
+# and far faster than the typed rows from `knowledge/query` — 0.85s against 73s
+# for the same chain, and current where the rows were stale. We were throwing it
+# away because it was not a table.
+#
+# GLiNER2 is a zero-shot NER encoder, so it can turn that paragraph back into a
+# table. This is the general-purpose LLM call the specialist replaces: a
+# structured-extraction prompt to a frontier model, doing NER, at 100x the cost
+# and 20x the latency.
+
+OWNERSHIP_ENTITIES = ["company", "person", "family", "jurisdiction", "stake",
+                      "date", "brand"]
+
+READER_SCHEMA: dict[str, Any] = {
+    "entities": OWNERSHIP_ENTITIES,
+    "classifications": [
+        {"task": "chain_position",
+         "labels": ["ultimate_parent", "direct_parent", "subsidiary",
+                    "acquirer", "target", "shareholder"]},
+    ],
 }
 
 # --------------------------------------------------------------------------- #
@@ -213,6 +240,40 @@ class PioneerClient:
             parsed["raw"] = body
         return parsed
 
+    # ---------------------------------------------------------------- extract
+    async def extract(self, text: str,
+                      schema: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """Pull structured entities out of a paragraph of Cala prose.
+
+        Returns {"entities": [{text, label, score}], "classifications": {...},
+        "inference_id": str, "latency_s": float} or None when Pioneer is not
+        configured — callers must handle None rather than receive a guess.
+        """
+        if not settings.has_pioneer or not text.strip():
+            return None
+        t0 = time.perf_counter()
+        async with self._gate:
+            try:
+                r = await self._client.post(
+                    f"{settings.pioneer_base}/inference",
+                    json={
+                        "model_id": settings.model_reader,
+                        "text": text[:6000],
+                        "schema": schema or READER_SCHEMA,
+                        "threshold": settings.assay_threshold,
+                    },
+                    headers=self._headers(),
+                    timeout=settings.reader_timeout_s,
+                )
+                r.raise_for_status()
+                body = r.json()
+            except Exception:
+                return None
+        out = _parse_entities(body)
+        out["inference_id"] = body.get("id") or body.get("inference_id")
+        out["latency_s"] = round(time.perf_counter() - t0, 3)
+        return out
+
     # --------------------------------------------------------------- feedback
     async def teach(self, inference_id: str | None, kind: str, terminal: bool) -> bool:
         """Post a correction that Cala later proved.
@@ -298,3 +359,46 @@ def _parse_inference(body: dict[str, Any]) -> dict[str, Any] | None:
     if terminal is None:
         terminal = kind in ("person", "family", "foundation")
     return {"kind": kind, "confidence": round(kind_conf or 0.5, 2), "terminal": bool(terminal)}
+
+
+def _parse_entities(body: dict[str, Any]) -> dict[str, Any]:
+    """Read a GLiNER2 extraction response defensively.
+
+    The result shape varies with the base model, so anything unrecognised comes
+    back as an empty list rather than a hallucinated entity.
+    """
+    result = body.get("result") or body.get("results") or body
+    ents: list[dict[str, Any]] = []
+    cls: dict[str, str] = {}
+
+    def take(items: Any) -> None:
+        if not isinstance(items, list):
+            return
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            label = it.get("label") or it.get("entity") or it.get("type")
+            text = it.get("text") or it.get("span") or it.get("value")
+            task = it.get("task") or it.get("name")
+            if text and label in OWNERSHIP_ENTITIES:
+                ents.append({"text": str(text).strip(),
+                             "label": str(label),
+                             "score": float(it.get("score") or it.get("confidence") or 0.0)})
+            elif task and label:
+                cls[str(task)] = str(label)
+
+    if isinstance(result, list):
+        take(result)
+    elif isinstance(result, dict):
+        take(result.get("entities"))
+        take(result.get("classifications"))
+        for key in ("spans", "predictions"):
+            take(result.get(key))
+
+    seen, uniq = set(), []
+    for e in ents:
+        k = (e["text"].lower(), e["label"])
+        if k not in seen:
+            seen.add(k)
+            uniq.append(e)
+    return {"entities": uniq, "classifications": cls}

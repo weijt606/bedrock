@@ -32,6 +32,10 @@ class Settings:
     # once scripts/train_assay.py has produced one.
     model_assay: str = os.environ.get("MODEL_ASSAY", "fastino/gliner2-base-v1")
     assay_threshold: float = _f("ASSAY_THRESHOLD", 0.5)
+    # The reader turns Cala prose back into a table. GLiNER2 large by default;
+    # swap in a fine-tuned job id once scripts/train_assay.py train-reader is done.
+    model_reader: str = os.environ.get("MODEL_READER", "fastino/gliner2-large-v1")
+    reader_timeout_s: float = _f("READER_TIMEOUT_S", 15.0)
     pioneer_adaptive: bool = os.environ.get("PIONEER_ADAPTIVE", "1") == "1"
 
     # --- fal: speech to text, and background removal for the shelf --------

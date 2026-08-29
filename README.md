@@ -88,6 +88,7 @@ is an opinion, is defamatory if wrong, and is not something this system emits.
 | `surveyor` | Manufacturers, co-packers, and which other brands use the same factory group |
 | `statute` | The regulations that dictate what the label must declare |
 | `recorder` | Litigation and sanctions listings, as filed |
+| `reader` | Turns Cala's *prose* answers back into structured layers with GLiNER2 |
 | `assay` | Pioneer's fine-tuned model classifies and scores every row |
 | `extractor` | Folds everything into one `CoreSample` and computes the game numbers |
 
@@ -184,6 +185,7 @@ sitting in the cache.
 | | |
 |---|---|
 | [`docs/API.md`](docs/API.md) | Endpoints, the `CoreSample` contract, every SSE frame |
+| [`docs/PIONEER.md`](docs/PIONEER.md) | Where the fine-tuned models sit, the benchmark, and the label-free training loop |
 | [`docs/AGENTS.md`](docs/AGENTS.md) | What each agent does, measured Cala behaviour, how to add one |
 | [`docs/GAMIFICATION.md`](docs/GAMIFICATION.md) | Which response fields drive which game mechanic |
 | [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) | Branches, the working agreement, how we split the work |
