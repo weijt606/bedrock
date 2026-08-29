@@ -3,6 +3,26 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
+
+
+def _load_local_env() -> None:
+    """Load developer-only values from the repository `.env` file.
+
+    Deployed environments keep precedence, and `.env` stays ignored by git.
+    """
+    env_file = Path(__file__).resolve().parents[2] / ".env"
+    if not env_file.is_file():
+        return
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_local_env()
 
 
 def _f(name: str, default: float) -> float:
@@ -47,7 +67,7 @@ class Settings:
     cache_dir: str = os.environ.get("CACHE_DIR", ".cache")
     cors_origins: list[str] = field(
         default_factory=lambda: os.environ.get(
-            "CORS_ORIGINS", "http://localhost:3000,http://localhost:5173,http://localhost:8000"
+            "CORS_ORIGINS", "http://localhost:3000,http://localhost:4173,http://127.0.0.1:4173,http://localhost:5173,http://localhost:8000"
         ).split(",")
     )
 

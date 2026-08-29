@@ -47,6 +47,20 @@ class SampleRequest(BaseModel):
     }
 
 
+class TranscriptionRequest(BaseModel):
+    """Audio-only request for the input UI before the user starts a dig."""
+
+    audio_b64: str = Field(description="Base64-encoded browser audio")
+    mime: str = Field("audio/webm", description="Audio MIME type")
+
+
+class ImageDescriptionRequest(BaseModel):
+    """Image-only request for reading a visible product label with vision."""
+
+    image_b64: str = Field(description="Base64-encoded product image")
+    mime: str = Field("image/jpeg", description="Image MIME type")
+
+
 # --------------------------------------------------------------------------- #
 #  provenance
 # --------------------------------------------------------------------------- #

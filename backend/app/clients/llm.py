@@ -12,11 +12,14 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from typing import Any
 
 import httpx
 
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 _PLANNER_SYSTEM = (
     "You plan database lookups. You never answer from your own knowledge and you "
@@ -49,7 +52,8 @@ class LLMClient:
             r.raise_for_status()
             text = r.json()["choices"][0]["message"]["content"]
             return json.loads(text) if json_mode else {"text": text}
-        except Exception:
+        except Exception as exc:
+            logger.warning("OpenAI request failed: %s", type(exc).__name__)
             return None
 
     # ----------------------------------------------------------------- plan
@@ -114,5 +118,6 @@ class LLMClient:
             r.raise_for_status()
             out = r.json()["choices"][0]["message"]["content"].strip()
             return None if out.upper() == "UNKNOWN" else out
-        except Exception:
+        except Exception as exc:
+            logger.warning("OpenAI image reading failed: %s", type(exc).__name__)
             return None

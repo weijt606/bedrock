@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#fbf3e4" />
+    <title>Bedrock — Start a trace</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="is-loading is-demo">
+    <div class="skeleton-screen" aria-hidden="true">
+      <div class="skeleton skeleton-logo"></div>
+      <div class="skeleton-stack">
+        <div class="skeleton skeleton-eyebrow"></div>
+        <div class="skeleton skeleton-title"></div>
+        <div class="skeleton skeleton-copy"></div>
+        <div class="skeleton skeleton-composer"></div>
+      </div>
+    </div>
+
+    <main class="app" id="app" aria-busy="true">
+      <a class="brand" href="#start" aria-label="Bedrock home">
+        <img src="assets/bedrock-logo.svg" alt="Bedrock" />
+      </a>
+
+      <section class="start" id="start" aria-labelledby="start-title">
+          <p class="eyebrow">BEFORE THE NEXT BITE</p>
+          <h1 id="start-title">Know what you’re<br /><em>actually eating.</em></h1>
+          <p class="lede">Start with any food or brand. Bedrock reveals the companies, people and public records behind what ends up on your plate.</p>
+
+        <form class="composer" id="intake-form">
+          <label class="sr-only" for="subject">Food, product or brand</label>
+          <div class="media-preview" id="media-preview" hidden>
+            <img id="photo-preview" alt="Selected product photo" />
+            <button class="remove-media" id="remove-photo" type="button" aria-label="Remove photo" title="Remove photo">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            </button>
+          </div>
+          <textarea id="subject" rows="1" autocomplete="off" spellcheck="false" placeholder=""></textarea>
+          <div class="composer__bar">
+            <div class="default-controls">
+              <div class="composer__actions">
+              <input id="photo-input" type="file" accept="image/*" hidden />
+              <button class="icon-button" id="photo-button" type="button" aria-label="Add a photo" title="Add a photo">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h2l1.2-1.7h4.6L15.5 5h2A2.5 2.5 0 0 1 20 7.5v9A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z"/><circle cx="12" cy="12" r="3.2"/></svg>
+              </button>
+              <span class="attachment-label" id="attachment-label"></span>
+              </div>
+              <div class="composer__actions">
+                <button class="icon-button" id="voice-button" type="button" aria-label="Record a voice note" title="Record a voice note">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3M9 20h6"/></svg>
+                </button>
+                <button class="send-button" type="submit" aria-label="Start trace">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7M12 19V5"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="recording-controls" aria-label="Voice note recording controls" hidden>
+              <button class="recording-button" id="cancel-recording" type="button" aria-label="Cancel recording" title="Cancel recording">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+              </button>
+              <div class="waveform" aria-label="Recording voice note" role="img">
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <button class="recording-button stop-button" id="stop-recording" type="button" aria-label="Stop recording" title="Stop recording"><span></span></button>
+              <button class="send-button" type="submit" aria-label="Start trace">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7M12 19V5"/></svg>
+              </button>
+            </div>
+          </div>
+        </form>
+        <p class="helper" id="helper" aria-live="polite">For example: <span>Starbucks Macchiato</span></p>
+        <details class="response-panel" id="response-panel" hidden open>
+          <summary>Bedrock response</summary>
+          <pre id="response-output"></pre>
+        </details>
+      </section>
+    </main>
+    <div class="notice" id="notice" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

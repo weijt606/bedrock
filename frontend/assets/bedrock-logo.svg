@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 44" role="img" aria-labelledby="title">
+  <title>Bedrock</title>
+  <circle cx="18" cy="22" r="15" fill="#E2A33C"/>
+  <path d="M18 7a15 15 0 0 1 0 30 15 15 0 1 0 0-30Z" fill="#241F19"/>
+  <text x="42" y="30" fill="#241F19" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="-1.5">bedrock</text>
+</svg>
