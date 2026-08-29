@@ -1,0 +1,123 @@
+{
+  "_comment": "Worked example of the `editorial` field specified in docs/EXTRACTOR_OUTPUT.md. Every claim and URL below was returned by the live Cala API (knowledge/search for the evidenced path, knowledge/query for the rest). Nothing here is invented. Use it to design and build the front end before the extractor exists.",
+
+  "subject": { "resolved_name": "Nutella", "entity_type": "Product", "confidence": 0.9 },
+
+  "editorial": {
+    "structure": {
+      "status": "partial",
+      "_why_partial": "Ownership is known but came from knowledge/query, which returns no document URLs. Rule 4 of the structure route says a chapter is only `evidenced` with a public URL. This is what `partial` looks like — design for it, it will be common until the enrichment pass lands.",
+      "chapters": [
+        {
+          "step": 1,
+          "entity": "Ferrero Group",
+          "entity_kind": "company",
+          "relationship": "parent company",
+          "country": "IT",
+          "evidence": [
+            { "claim": "Nutella's parent company is Ferrero Group.",
+              "scope": "brand", "date": null,
+              "sources": [{ "publisher": null, "url": null, "query": "Nutella.parent_company" }] }
+          ]
+        }
+      ],
+      "ending": null
+    },
+
+    "conduct": [
+      {
+        "id": "hazelnuts-turkiye-child-labour",
+        "status": "evidenced",
+        "topic": "labor",
+        "scope": "supply_chain",
+        "chapters": [
+          {
+            "role": "product_link",
+            "claim": "Nutella contains hazelnuts, sourced from Turkey, Italy, Chile and the United States.",
+            "evidence": [
+              { "claim": "Nutella contains hazelnuts, sourced from Turkey, Italy, Chile and the United States.",
+                "scope": "product", "date": null,
+                "sources": [{ "publisher": "Cala knowledge graph", "url": null,
+                              "query": "Nutella.ingredients.return(ingredient, origin_country, supplier)" }] }
+            ]
+          },
+          {
+            "role": "commercial_link",
+            "claim": "Turkey produces about three-quarters of the world's hazelnut supply, and Ferrero purchases roughly one-quarter of the global supply.",
+            "evidence": [
+              { "claim": "Turkey produces about three-quarters of the world's hazelnut supply and Ferrero purchases roughly one-quarter of the global supply.",
+                "scope": "supply_chain", "date": "2019",
+                "sources": [{ "publisher": "Business Insider",
+                              "url": "https://www.businessinsider.com/nutella-under-fire-over-turkish-child-labor-claims-2019-9",
+                              "query": "What child labor issues have been documented in Ferrero hazelnut supply chain in Turkey?" }] }
+            ]
+          },
+          {
+            "role": "documented_impact",
+            "claim": "Ferrero's 2024 Sustainability Report disclosed the identification of 3,020 children working on hazelnut farms in Turkey.",
+            "evidence": [
+              { "claim": "Ferrero's 2024 Sustainability Report disclosed the identification of 3,020 children working on hazelnut farms in Turkey, who were subsequently referred to remediation.",
+                "scope": "supply_chain", "date": "2024",
+                "sources": [{ "publisher": "India CSR", "url": "https://indiacsr.in/?p=171071",
+                              "query": "What child labor issues have been documented in Ferrero hazelnut supply chain in Turkey?" }] },
+              { "claim": "Human-rights investigations reported that children as young as 11 were working as hazelnut pickers in Ferrero's supply chain.",
+                "scope": "supply_chain", "date": "2019",
+                "sources": [
+                  { "publisher": "The Guardian",
+                    "url": "https://www.theguardian.com/global-development/2019/dec/20/are-ferrero-rocher-chocolates-tainted-by-child-labour",
+                    "query": "What child labor issues have been documented in Ferrero hazelnut supply chain in Turkey?" },
+                  { "publisher": "Business & Human Rights Resource Centre",
+                    "url": "https://www.business-humanrights.org/en/latest-news/turkey-hazelnuts-in-ferrero-rocher-supply-chain-linked-to-child-labour-includes-company-comments",
+                    "query": "What child labor issues have been documented in Ferrero hazelnut supply chain in Turkey?" }
+                ] }
+            ]
+          },
+          {
+            "role": "response",
+            "claim": "Ferrero partnered with the International Labour Organisation on a 40-month project, contributing over $4 million, to eliminate the worst forms of child labour in hazelnut harvesting.",
+            "evidence": [
+              { "claim": "Ferrero partnered with the International Labour Organisation on a 40-month project, contributing over $4 million, to eliminate the worst forms of child labour in hazelnut harvesting.",
+                "scope": "supply_chain", "date": "2024",
+                "sources": [{ "publisher": "International Labour Organization",
+                              "url": "https://www.ilo.org/resource/news/ilo-ferrero-partnership-aims-eliminate-child-labour-hazelnut-harvesting",
+                              "query": "What child labor issues have been documented in Ferrero hazelnut supply chain in Turkey?" }] }
+            ]
+          }
+        ]
+      }
+    ],
+
+    "public_records": [
+      { "title": "In Re: Nutella Marketing and Sales Practices Litigation",
+        "scope": "brand", "date": "2012",
+        "summary": "Class action over marketing Nutella as part of a healthy breakfast. Settled 2012, upheld on appeal 2014.",
+        "_note": "knowledge/query returned this without a document URL. Under rule 4 it is NOT yet eligible for editorial — shown here so the design can handle the ineligible case.",
+        "sources": [{ "publisher": null, "url": null,
+                      "query": "Ferrero Group.lawsuits.return(case, court, date, status)" }] }
+    ],
+
+    "brands": [
+      { "owner": "Ferrero Group", "count": 66,
+        "sample": ["Kinder", "Ferrero Rocher", "Tic Tac", "Thorntons", "Keebler",
+                   "Special K", "Rice Krispies", "Raisin Bran", "Kashi"],
+        "_note": "The reveal is the last four: Ferrero owns the cereal brands. Nutella itself is excluded per depuration rule 2.",
+        "sources": [{ "publisher": null, "url": null, "query": "Ferrero Group.brands" }] }
+    ],
+
+    "gaps": [
+      { "query": "Ferrero Group.regulatory_actions",
+        "reason": "no_rows",
+        "attempts": ["Ferrero Group.regulatory_actions",
+                     "What regulatory actions or fines has Ferrero Group received?",
+                     "What is the regulatory actions of Ferrero Group?"],
+        "latency_s": 31.2,
+        "_note": "A corroborated gap: three phrasings, all empty. The same query returns 7 rows for Coca-Cola, so this silence is about Ferrero, not about our wording. Render `attempts` — it is what makes the silence provable." }
+    ],
+
+    "coverage": {
+      "searched": ["ownership", "ingredients", "ingredient_origin", "labor_practices", "public_records", "brands"],
+      "missing": ["ownership_document_urls", "regulatory_actions", "lawsuit_document_urls"],
+      "source_count": 5
+    }
+  }
+}
