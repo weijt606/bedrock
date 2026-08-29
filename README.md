@@ -231,9 +231,9 @@ dig. See [`docs/PIONEER.md`](docs/PIONEER.md).
 | [`docs/GAMIFICATION.md`](docs/GAMIFICATION.md) | Which response fields drive which game mechanic |
 | [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) | Branches, the working agreement, how we split the work |
 
-`demo/` holds the design prototype that established the visual language — the
-descent from candy red to institutional paper, the country trail, the `rows = 0`
-ending. It runs on frozen data and needs no backend.
+`frontend/` is the page. It is served by the API at <http://localhost:8000> in
+development, and deployed separately in production, where it falls back to
+`/api`.
 
 ---
 

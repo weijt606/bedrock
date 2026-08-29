@@ -3,7 +3,7 @@
     POST /v1/samples              -> {sample_id}, then stream it
     GET  /v1/samples/{id}/events  -> SSE, one frame per finding
     GET  /v1/samples/{id}         -> the finished CoreSample
-    POST /v1/samples:sync         -> blocking, returns a CoreSample (demo/tests only)
+    POST /v1/samples:sync         -> blocking, returns a CoreSample (tests, cache warming)
     GET  /v1/health               -> which providers are wired up
 
 Interactive schema at /docs. That page is the contract with the front end.
@@ -174,12 +174,13 @@ async def sync_sample(req: SampleRequest) -> CoreSample:
     return final
 
 
-# The prototype front end is served from the same origin, so there is one
-# command to run and no CORS to think about. Mounted last so it never shadows
-# an API route.
-_DEMO = pathlib.Path(__file__).resolve().parents[2] / "demo"
-if _DEMO.is_dir():
-    app.mount("/", StaticFiles(directory=str(_DEMO), html=True), name="demo")
+# The front end is served from the same origin, so there is one command to run
+# and no CORS to think about in development. Mounted last so it never shadows an
+# API route. In production the two are deployed separately and the page falls
+# back to /api — see the top of frontend/app.js.
+_FRONTEND = pathlib.Path(__file__).resolve().parents[2] / "frontend"
+if _FRONTEND.is_dir():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND), html=True), name="frontend")
 
 
 def _sse(ev: StreamEvent) -> str:

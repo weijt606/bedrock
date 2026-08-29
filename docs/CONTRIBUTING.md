@@ -18,8 +18,7 @@ return today.
 it stops the other person working. Adding a field never breaks anything — add
 freely.
 
-Until the backend is up, mock it: every shape in `API.md` has a filled example,
-and `demo/index.html` has five complete samples hard-coded to copy from.
+Until the backend is up, mock it: every shape in `API.md` has a filled example.
 
 ## Branches
 
@@ -40,6 +39,15 @@ python3.12 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 set -a && . ../.env && set +a
 ./.venv/bin/uvicorn app.main:app --reload --port 8000
 ./.venv/bin/pytest -q          # no network needed
+```
+
+That serves the API *and* `frontend/` on <http://localhost:8000>, so there is one
+command and no CORS in development. To run the page separately instead — a live
+reload server, say — anything static will do, and the origin needs to be in
+`CORS_ORIGINS`:
+
+```bash
+cd frontend && python3 -m http.server 4173
 ```
 
 ## Before every demo

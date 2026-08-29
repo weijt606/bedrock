@@ -207,8 +207,9 @@ class Orchestrator:
             agents=["intake", "reader", "prospector", "surveyor", "statute",
                     "recorder", "auditor", "extractor"],
             models={
-                "planner": settings.model_planner if settings.has_openai else "static-ladder",
-                "vision": settings.model_vision if settings.has_openai else "unavailable",
+                "planner": settings.planner_model if settings.has_llm else "static-ladder",
+                "vision": settings.vision_model if settings.has_llm else "unavailable",
+                "reasoning_provider": settings.llm_provider,
                 "assay": self.pioneer.backend,
                 "reader": (settings.model_reader if settings.has_pioneer
                            else "unavailable"),

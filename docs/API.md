@@ -15,8 +15,8 @@ cd backend && ./.venv/bin/uvicorn app.main:app --port 8000
 #  http://localhost:8000/docs   this contract, live
 ```
 
-`demo/index.html` is the reference implementation of everything below — if a
-frame is ambiguous here, look at how the demo renders it.
+`frontend/` is the reference implementation of everything below — if a frame is
+ambiguous here, look at how the page renders it.
 
 ---
 
@@ -292,7 +292,7 @@ compare once `done` arrives. Nothing on the stream spoils the answer early.
 | | |
 |---|---|
 | `GET /v1/health` | Which providers are wired up, which classifier is live, how many answers are cached |
-| `POST /v1/samples:sync` | Blocking, returns a `CoreSample`. Tests and cache warming only — never a demo |
+| `POST /v1/samples:sync` | Blocking, returns a `CoreSample`. Tests and cache warming only — never a live demo |
 
 ### Warming the cache before a demo
 
