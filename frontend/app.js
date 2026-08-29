@@ -508,6 +508,36 @@ const startProbe = (query) => {
   }, 500);
 };
 
+const PUBLISHER = {
+  'theguardian.com': 'The Guardian', 'businessinsider.com': 'Business Insider',
+  'business-humanrights.org': 'Business & Human Rights Resource Centre',
+  'ilo.org': 'International Labour Organization', 'sec.gov': 'SEC',
+  'gleif.org': 'GLEIF', 'reuters.com': 'Reuters', 'ft.com': 'Financial Times',
+  'bbc.com': 'BBC', 'nytimes.com': 'The New York Times', 'indiacsr.in': 'India CSR',
+};
+// Cala's `source.name` is sometimes an editorial slug rather than a masthead —
+// it returns "Middle East crisis" for a Guardian article. The domain is the
+// honest fallback, and it is what a reader recognises.
+const publisherOf = (url) => {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    return PUBLISHER[host] || host;
+  } catch { return url; }
+};
+
+// A claim and its documents belong together. A bibliography at the foot of the
+// page is not a citation — the reader cannot tell which line it backs.
+const sourceHtml = (source, extraClass = '') => {
+  const docs = (source?.documents || []).slice(0, 3);
+  if (!docs.length && !source?.query) return '';
+  const links = docs.map((u) => (
+    `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(publisherOf(u))}</a>`
+  )).join('');
+  const q = !docs.length && source?.query
+    ? `<span class="cite__q">${escapeHtml(source.query)}</span>` : '';
+  return `<p class="cite ${extraClass}">${links}${q}</p>`;
+};
+
 const layerHtml = (layer) => {
   const human = layer.kind === 'person' || layer.kind === 'family';
   const where = layer.country ? (COUNTRY[layer.country] || layer.country) : null;
@@ -519,7 +549,8 @@ const layerHtml = (layer) => {
     <p class="chain__step">${escapeHtml(step)}</p>
     <p class="chain__name" data-human="${human}">${escapeHtml(layer.name)}</p>
     ${meta ? `<p class="chain__meta">${meta}</p>` : ''}
-    ${layer.address ? `<p class="chain__addr">${escapeHtml(layer.address)}</p>` : ''}`;
+    ${layer.address ? `<p class="chain__addr">${escapeHtml(layer.address)}</p>` : ''}
+    ${sourceHtml(layer.source)}`;
 };
 
 const addLayer = (layer) => {
@@ -594,6 +625,7 @@ const renderResult = (sample) => {
       <p class="story__kind">${escapeHtml(beat.kind)}</p>
       <p class="story__head">${escapeHtml(beat.headline)}</p>
       ${beat.detail ? `<p class="story__detail">${escapeHtml(beat.detail)}</p>` : ''}
+      ${sourceHtml(beat.source)}
     </li>`).join('');
 
   // Every document behind every claim, deduplicated. These are real URLs from
@@ -607,7 +639,8 @@ const renderResult = (sample) => {
   (sample.concerns || []).forEach((c) => (c.flags || []).forEach(collect));
   sourcesCount.textContent = `(${urls.size})`;
   sourcesList.innerHTML = [...urls].map((u) => (
-    `<li><a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(u)}</a></li>`
+    `<li><a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer"
+        >${escapeHtml(publisherOf(u))}</a> <span class="sources__url">${escapeHtml(u)}</span></li>`
   )).join('');
   sourcesWrap.hidden = urls.size === 0;
 
