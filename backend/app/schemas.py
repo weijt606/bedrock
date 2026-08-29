@@ -63,6 +63,36 @@ class Source(BaseModel):
     fact_ids: list[str] = Field(default_factory=list, description="Cala explainability fact ids")
 
 
+Scope = Literal["product", "brand", "parent", "supplier",
+                "supply_chain", "sector", "regulator"]
+
+
+class EvidenceSource(BaseModel):
+    """One citation behind a claim. `query` is kept for audit; `url` is what the
+    reader can actually open, and its absence is what makes a claim uncitable."""
+
+    publisher: str | None = None
+    url: str | None = None
+    query: str = Field(description="The exact string sent to Cala")
+
+
+class Evidence(BaseModel):
+    """A claim Cala stated, with its provenance.
+
+    The extractor may select, order, de-duplicate and place these in a template.
+    It may never rewrite the claim, imply causation, or synthesise a summary.
+    """
+
+    claim: str
+    scope: Scope
+    date: str | None = None
+    sources: list[EvidenceSource] = Field(min_length=1)
+
+    @property
+    def is_citable(self) -> bool:
+        return any(s.url for s in self.sources)
+
+
 # --------------------------------------------------------------------------- #
 #  the core sample
 # --------------------------------------------------------------------------- #
