@@ -178,6 +178,79 @@ class Gap(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+#  editorial — the presentation model
+# --------------------------------------------------------------------------- #
+
+EditorialStatus = Literal["evidenced", "partial", "not_found"]
+
+
+class OwnershipChapter(BaseModel):
+    """A normalised Layer. Not new research."""
+
+    step: int
+    entity: str
+    entity_kind: EntityKind = EntityKind.unknown
+    relationship: str | None = None
+    country: str | None = None
+    evidence: list[Evidence] = Field(default_factory=list)
+
+
+class Ending(BaseModel):
+    kind: EntityKind
+    name: str
+
+
+class StructureRoute(BaseModel):
+    status: EditorialStatus = "not_found"
+    chapters: list[OwnershipChapter] = Field(default_factory=list)
+    ending: Ending | None = None
+
+
+ConductRole = Literal["product_link", "commercial_link", "documented_impact", "response"]
+
+
+class ConductChapter(BaseModel):
+    role: ConductRole
+    claim: str
+    evidence: list[Evidence] = Field(default_factory=list)
+
+
+class ConductPath(BaseModel):
+    """The minimum safe unit for the second door: a product connection and a
+    documented event. `response` is optional and never implies resolution."""
+
+    id: str
+    status: EditorialStatus = "not_found"
+    topic: Literal["labor", "environment", "health", "regulatory", "legal"] = "legal"
+    scope: Scope = "product"
+    chapters: list[ConductChapter] = Field(default_factory=list)
+
+
+class RecordCard(BaseModel):
+    """A relevant public record that cannot form a complete conduct path.
+    A title-only flag is not eligible."""
+
+    title: str
+    scope: Scope = "brand"
+    date: str | None = None
+    summary: str | None = None
+    evidence: list[Evidence] = Field(default_factory=list)
+
+
+class BrandGroup(BaseModel):
+    owner: str
+    count: int = 0
+    sample: list[str] = Field(default_factory=list)
+    evidence: list[Evidence] = Field(default_factory=list)
+
+
+class Coverage(BaseModel):
+    searched: list[str] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
+    source_count: int = 0
+
+
+# --------------------------------------------------------------------------- #
 #  game surface
 # --------------------------------------------------------------------------- #
 
