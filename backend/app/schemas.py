@@ -139,12 +139,22 @@ class Gap(BaseModel):
 
     These are load-bearing, not errors. The most interesting thing Bedrock finds is
     frequently the thing nobody is required to write down.
+
+    A gap is only trustworthy once the same question has been asked several ways.
+    Cala answers a *phrasing*, not an intent: `Chupa Chups.raw_material_origin`
+    returns 0 rows while "What are Chupa Chups made of and where do the ingredients
+    come from?" returns 23. `attempts` records every phrasing that came back empty,
+    so the UI can prove the silence rather than assert it.
     """
 
     query: str
-    reason: Literal["no_rows", "too_complex", "error"] = "no_rows"
+    reason: Literal["no_rows", "too_complex", "error", "rate_limited"] = "no_rows"
     note: str | None = None
     latency_s: float = 0.0
+    attempts: list[str] = Field(
+        default_factory=list,
+        description="Every phrasing tried before declaring this a gap, in order",
+    )
 
 
 # --------------------------------------------------------------------------- #
