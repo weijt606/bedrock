@@ -77,6 +77,11 @@ class ExtractorAgent:
             ))
 
         now = time.time()
+        story = build_story(subject, layers, score, siblings, gaps, concerns or [])
+        # The enricher's URLs live on the editorial routes; put them on the beats
+        # that make the claim, which is what the interface renders.
+        attach_documents(story, editorial)
+
         return CoreSample(
             subject=subject,
             layers=layers,
@@ -87,8 +92,7 @@ class ExtractorAgent:
             editorial=editorial,
             siblings=siblings,
             gaps=gaps,
-            story=build_story(subject, layers, score, siblings, gaps,
-                              concerns or []),
+            story=story,
             guesses=guesses,
             score=score,
             meta=Meta(
@@ -136,6 +140,36 @@ def _origin(subject: Subject, layers: list[Layer]) -> str | None:
 # `weight` decides what gets the screen, and it comes out of the facts: a record
 # filed against a company four steps above the label beats the year the brand was
 # founded. Sort by weight, take three, and you have the story.
+
+def attach_documents(story: list[Beat], editorial: "EditorialRoutes | None") -> None:
+    """Give each beat the documents the enricher found for the entity it is about.
+
+    `story[]` is templated from knowledge/query rows, which carry no URL, while
+    the enrichment pass asks knowledge/search and puts real documents on
+    `editorial.structure.chapters[].evidence`. Both describe the same hops, so
+    `Beat.entities` is the join between them.
+
+    This moves citations that already exist onto the beats that state the claim.
+    It never invents one: a beat about an entity the enricher did not reach keeps
+    its query and stays visibly uncited.
+    """
+    if editorial is None or not getattr(editorial, "structure", None):
+        return
+    by_entity: dict[str, list[str]] = {}
+    for chapter in editorial.structure.chapters:
+        urls = [s.url for ev in chapter.evidence for s in ev.sources if s.url]
+        if urls:
+            by_entity[chapter.entity] = urls
+    if not by_entity:
+        return
+    for beat in story:
+        if beat.source is None:
+            continue
+        for name in beat.entities:
+            for url in by_entity.get(name, []):
+                if url not in beat.source.documents:
+                    beat.source.documents.append(url)
+
 
 def build_story(subject: Subject, layers: list[Layer], score: Score,
                 siblings: list[str], gaps: list[Gap],

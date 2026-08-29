@@ -40,7 +40,8 @@ class SampleRequest(BaseModel):
     depth: int = Field(4, ge=1, le=6, description="How many ownership hops to attempt")
     include: list[Literal["ownership", "supply", "statute", "flags", "siblings",
                           "concerns", "editorial"]] = Field(
-        default_factory=lambda: ["ownership", "supply", "statute", "flags", "siblings"]
+        default_factory=lambda: ["ownership", "supply", "statute", "flags",
+                                 "siblings", "editorial"]
     )
     concerns: list[Concern] = Field(
         default_factory=list,
