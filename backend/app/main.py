@@ -72,10 +72,10 @@ async def sample_media(sample_id: str) -> dict:
     must never delay `editorial` or `done`. The interface polls this and shows
     a card only once it says `ready`; every other answer means show nothing.
     """
-    rid = VIDEO_JOBS.get(sample_id)
-    if not rid:
+    job = VIDEO_JOBS.get(sample_id)
+    if not job:
         return {"status": "unavailable", "url": None}
-    status, url = await _orc.video.poll(rid)
+    status, url = await _orc.video.poll(*job)
     return {"status": status, "url": url}
 
 

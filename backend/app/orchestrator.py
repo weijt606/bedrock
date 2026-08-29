@@ -38,7 +38,7 @@ from .schemas import (ConcernReport, CoreSample, EditorialRoutes, EventType,
 
 
 # request ids by sample, so /media can be polled after the stream closes.
-VIDEO_JOBS: dict[str, str] = {}
+VIDEO_JOBS: dict[str, tuple[str, str]] = {}
 
 # Only a shape hint for the camera. Not a claim about the product.
 _FORM = {"product": "product", "company": "package", "organization": "package"}
@@ -94,9 +94,9 @@ class Orchestrator:
             image_url = await self.video.upload(req.image_b64, req.mime or "image/jpeg")
 
         prompt = build_prompt(motifs, form, bool(image_url))
-        rid = await self.video.submit(prompt, image_url)
-        if rid:
-            VIDEO_JOBS[self._sid] = rid
+        job = await self.video.submit(prompt, image_url)
+        if job:
+            VIDEO_JOBS[self._sid] = job
             await emit("media", {"status": "pending",
                                  "route": "image-to-video" if image_url else "text-to-video"})
 

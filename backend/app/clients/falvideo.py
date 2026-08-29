@@ -81,7 +81,14 @@ class FalVideoClient:
 
     @property
     def ready(self) -> bool:
-        return bool(settings.fal_key and settings.fal_video_model)
+        return settings.has_video
+
+    @staticmethod
+    def model_for(has_image: bool) -> str:
+        """fal splits the two routes across two models; fall back to the other
+        when only one is configured, so a half-configured setup still works."""
+        i2v, t2v = settings.fal_video_i2v, settings.fal_video_t2v
+        return (i2v or t2v) if has_image else (t2v or i2v)
 
     @property
     def _auth(self) -> dict[str, str]:
@@ -106,9 +113,14 @@ class FalVideoClient:
             logger.warning("fal image upload failed: %s", type(exc).__name__)
             return None
 
-    async def submit(self, prompt: str, image_url: str | None = None) -> str | None:
-        """Queue the job. Returns a request id, or None if we cannot start."""
+    async def submit(self, prompt: str,
+                     image_url: str | None = None) -> tuple[str, str] | None:
+        """Queue the job. Returns (model, request_id) — the model travels with
+        the id because polling happens on the same endpoint that accepted it."""
         if not self.ready:
+            return None
+        model = self.model_for(bool(image_url))
+        if not model:
             return None
         body: dict[str, object] = {
             "prompt": prompt,
@@ -119,22 +131,34 @@ class FalVideoClient:
             body["image_url"] = image_url
         try:
             r = await self._client.post(
-                f"{QUEUE}/{settings.fal_video_model}", headers=self._auth, json=body)
+                f"{QUEUE}/{model}", headers=self._auth, json=body)
             r.raise_for_status()
-            return r.json().get("request_id")
+            rid = r.json().get("request_id")
+            return (model, rid) if rid else None
         except Exception as exc:  # noqa: BLE001
             logger.warning("fal video submit failed: %s", type(exc).__name__)
             return None
 
-    async def poll(self, request_id: str) -> tuple[str, str | None]:
+    @staticmethod
+    def _status_base(model: str) -> str:
+        """fal submits to the full endpoint but reports status on the app id.
+
+            submit  queue.fal.run/minimax/h3-max/text-to-video
+            status  queue.fal.run/minimax/h3-max/requests/{id}/status
+
+        Polling the submit path returns a 404, which is how this was found.
+        """
+        return "/".join(model.split("/")[:2])
+
+    async def poll(self, model: str, request_id: str) -> tuple[str, str | None]:
         """('pending'|'ready'|'unavailable', url). Never raises: a loop that
         does not arrive is a loop the interface does not show."""
-        if not self.ready or not request_id:
+        if not self.ready or not request_id or not model:
             return ("unavailable", None)
-        model = settings.fal_video_model
+        base = self._status_base(model)
         try:
             st = await self._client.get(
-                f"{QUEUE}/{model}/requests/{request_id}/status", headers=self._auth)
+                f"{QUEUE}/{base}/requests/{request_id}/status", headers=self._auth)
             st.raise_for_status()
             status = st.json().get("status")
             if status in {"IN_QUEUE", "IN_PROGRESS"}:
@@ -142,7 +166,7 @@ class FalVideoClient:
             if status != "COMPLETED":
                 return ("unavailable", None)
             res = await self._client.get(
-                f"{QUEUE}/{model}/requests/{request_id}", headers=self._auth)
+                f"{QUEUE}/{base}/requests/{request_id}", headers=self._auth)
             res.raise_for_status()
             return ("ready", _video_url(res.json()))
         except Exception as exc:  # noqa: BLE001
