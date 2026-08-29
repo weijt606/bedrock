@@ -48,31 +48,71 @@ UPLOAD_INITIATE = "https://rest.alpha.fal.ai/storage/upload/initiate"
 PROMPT_WITH_PHOTO = (
     "The {form} in the reference image stays exactly as it is — sharp, centred "
     "and unchanged, its label and logo untouched. {motif_line}"
-    "Very slow push-in. Shallow depth of field, one soft warm key light. "
-    "Editorial food photography, {palette}. No cuts, no text, no people."
+    "Very slow push-in. Shallow depth of field, one soft key light. "
+    "Editorial product photography, {palette}. No cuts, no text, no people."
 )
 
 PROMPT_NO_PHOTO = (
     "Extreme close-up of {motifs}. Slow steady push-in. Shallow depth of field, "
-    "one soft warm key light, fine dust in the air. Editorial food photography, "
+    "one soft key light, fine dust in the air. Editorial product photography, "
     "{palette}. Static composition, no cuts, no text, no people."
 )
 
 MOTIF_LINE = "Raw {motifs} drift slowly into frame around it, catching the light. "
 
-PALETTE = "deep brown, cream, muted red"
+# Was "deep brown, cream, muted red" — Nutella's own colours, which made every
+# other product look like it had been shot on the wrong set. The look is now
+# described by light and restraint, and the product supplies the colour.
+PALETTE = "muted, low-saturation editorial colour, natural light"
+
+
+# Not every ingredient is a thing you can photograph. Cala returns Pepsi's list
+# as "Carbonated Water, High Fructose Corn Syrup, Caramel Color, Phosphoric
+# Acid" — all true, none filmable, and asking a renderer for a close-up of
+# phosphoric acid produces exactly the mush it sounds like.
+#
+# This is a *visual* filter, not a factual one: it decides what can appear on
+# screen, never what is true. An ingredient that fails it is still in the data
+# and still on the cards; it just does not get filmed.
+FILMABLE = (
+    "hazelnut", "almond", "peanut", "cocoa", "coffee", "bean", "nut",
+    "barley", "wheat", "rice", "oat", "corn", "maize", "grain", "malt", "hop",
+    "sugar", "salt", "milk", "cream", "butter", "honey", "vanilla",
+    "olive", "palm", "seed", "leaf", "tea", "fruit", "orange", "lemon",
+    "apple", "cherry", "grape", "berry", "tomato", "potato", "pepper", "spice",
+)
+
+# A word above is not enough on its own: both "corn" and "palm" occur in
+# ingredients that are chemically accurate but do not give the renderer a
+# tangible subject (corn syrup, palm oil).  Prefer a short, honest motif list
+# to asking the model to visualise a liquid additive.
+NON_VISUAL_FORMS = ("acid", "color", "colour", "caffeine", "water", "syrup", "oil")
+
+
+def filmable(motifs: list[str]) -> list[str]:
+    """Keep only the materials that exist as objects in front of a camera."""
+    out = []
+    for m in motifs:
+        low = m.lower()
+        if (any(w in low for w in FILMABLE)
+                and not any(form in low for form in NON_VISUAL_FORMS)):
+            out.append(m)
+    return out
 
 
 def build_prompt(motifs: list[str], form: str | None, has_photo: bool) -> str:
     """Fill the template. `motifs` are ingredients Cala actually returned."""
-    named = ", ".join(motifs[:3]) if motifs else ""
+    named = ", ".join(filmable(motifs)[:3])
     if has_photo:
+        # No ingredients from Cala means no ingredients on screen. The earlier
+        # fallback named cocoa and hazelnuts, so a Pepsi search was filmed with
+        # Nutella's ingredients — an invented fact, in pictures.
         return PROMPT_WITH_PHOTO.format(
             form=form or "product",
             motif_line=MOTIF_LINE.format(motifs=named) if named else "",
             palette=PALETTE)
     return PROMPT_NO_PHOTO.format(
-        motifs=named or "raw cocoa beans and hazelnuts on dark stone",
+        motifs=named or "a plain dark surface under a single soft light",
         palette=PALETTE)
 
 
@@ -131,7 +171,12 @@ class FalVideoClient:
                 r = await c.get(url, headers={"User-Agent": "Bedrock/0.1 (hackathon project)"})
                 r.raise_for_status()
                 mime = r.headers.get("content-type", "image/jpeg").split(";")[0]
-                if not mime.startswith("image/"):
+                if mime not in {"image/jpeg", "image/png", "image/webp"}:
+                    # Wikipedia often answers with an SVG — that is the brand's
+                    # logo, not a photograph of the thing. Feeding a flat vector
+                    # to image-to-video produces exactly the mush it sounds like,
+                    # so we decline and let the text route handle it.
+                    logger.info("packshot is %s, not a photograph; skipping", mime)
                     return None
                 return await self.upload(base64.b64encode(r.content).decode(), mime)
         except Exception as exc:  # noqa: BLE001 - no picture is not an error
