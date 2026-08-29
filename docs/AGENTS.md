@@ -54,14 +54,73 @@ Litigation and sanctions, **as filed**. Rows carry `source` fact ids. Never
 characterises a company — see the one rule in the README.
 
 ### `assay` (Pioneer)
-Classifies each row: entity kind, confidence, whether the chain terminates. One
-call per batch, never per row. Biased toward `company`, because mislabelling a
-company as a person ends the dig one hop in — the failure we actually hit.
 
-Falls back to a deterministic regex classifier with no key, so the pipeline runs
-end to end without Pioneer and gains accuracy when it is plugged in. Pioneer's
-`adaptive: true` retrains on our traffic, and every dig is a free labelled
-example.
+Given one row from a share register, decide what kind of thing it names and
+whether the ownership chain stops there. That single call is what makes the dig
+work or fail:
+
+| Row | Wrong answer | What happens |
+|---|---|---|
+| `Perfetti Van Melle` | person | chain ends one hop in, Luxembourg never found |
+| `Juan Roig` | company | chain never ends, runs to the depth cap |
+| `Free float` | company | we follow a *category* upwards and get nonsense |
+
+Three capitalised words with no legal suffix — a regex cannot separate a family
+company from a family member. It is a narrow, high-volume classification problem
+over short strings, which is exactly where a small fine-tuned encoder beats a
+large general model on accuracy, latency and cost simultaneously. That is the
+only place Pioneer sits in Bedrock.
+
+**Runtime** — `POST /inference` on a GLiNER2 encoder, schema-based:
+
+```json
+{ "model_id": "fastino/gliner2-base-v1",
+  "text": "Juan Roig | role: executive chairman | ownership_percent: 50.66%",
+  "schema": { "classifications": [
+      {"task": "entity_kind",       "labels": ["company","person","family","fund","foundation","not_an_entity"]},
+      {"task": "chain_terminates",  "labels": ["yes","no"]}]},
+  "threshold": 0.5 }
+```
+
+Auth is `X-API-Key`, not a bearer token. Rows in a batch are classified
+concurrently — ~100 ms each, 5,000 req/min allowed — so a whole answer costs
+about as much wall-clock as one row.
+
+**The feedback loop** — nobody hand-labels anything.
+
+```
+prospector walks past a node  ──▶  that node demonstrably had shareholders
+                                    ──▶  it was a company, and not terminal
+                                          ──▶  POST /inferences/{id}/feedback
+```
+
+Cala's verified graph is the supervisor. Every dig a player runs produces free
+labelled examples, and Pioneer's Adaptive Inference retrains the specialist on
+them. Corrections are only posted where the model disagreed with what the chain
+went on to prove — confirming a correct prediction carries no signal.
+
+**Training** — `backend/scripts/train_assay.py`:
+
+```
+seed      harvest real rows out of our own Cala cache into datasets/
+generate  POST /generate      synthesise more of the same shape
+train     POST /felix/training-jobs   LoRA on fastino/gliner2-base-v1
+status    poll for f1 / precision / recall
+evaluate  POST /felix/evaluations
+```
+
+`seed` needs no Pioneer key — it reads answers already on disk. On the first run
+it produced 101 real rows and flagged 36 as low-confidence, which is where the
+hand-labelling effort is worth spending. It also turned up `Free float` and
+`Treasury shares` classified as companies, which is how the `not_an_entity`
+label came to exist.
+
+Put the finished job id in `MODEL_ASSAY` and nothing else changes.
+
+**Without a key** the client falls back to a deterministic classifier that
+refuses to guess on ambiguous names — it returns `unknown` with `terminal=False`
+so the dig continues and the next hop resolves it. Ending a chain early is the
+expensive mistake, so the fallback is built to never make it.
 
 ### `extractor`
 Folds everything into one `CoreSample` and computes the derived numbers the game

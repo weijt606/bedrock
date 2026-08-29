@@ -31,7 +31,7 @@ So the roles are split, and the split is enforced by the type system:
 |---|---|---|
 | **Cala** | state facts, with sources | — |
 | **OpenAI** | plan which questions to ask, reshape returned rows, read a brand name off a photograph | assert anything about a company |
-| **Pioneer** | classify and score rows Cala returned | add a row |
+| **Pioneer** | classify and score rows Cala returned, on a fine-tuned encoder | add a row |
 | **fal** | transcribe speech to text | anything else |
 
 Every user-visible claim in the response — `Layer`, `SupplyNode`, `Statute`,
@@ -152,8 +152,30 @@ upgrades one stage rather than unlocking it:
 |---|---|
 | `CALA_API_KEY` | **required** — the facts |
 | `OPENAI_API_KEY` | planner + photo input |
-| `PIONEER_API_KEY` | classification accuracy on registry rows |
+| `PIONEER_API_KEY` | classification accuracy on registry rows, plus the retraining loop |
 | `FAL_KEY` | voice input |
+
+---
+
+## The training loop nobody has to label
+
+The assay decides whether a row naming `Perfetti Van Melle` is a company or a
+person. Get it wrong and the dig ends one hop in, before Luxembourg.
+
+Bedrock never labels that by hand. When the prospector walks one hop further,
+Cala has just *proved* what the previous node was — a name with shareholders was
+a company, and did not terminate the chain. That correction goes back to Pioneer
+via `POST /inferences/{id}/feedback`, so **the verified knowledge graph supervises
+the small model**, and every dig a player runs is a free labelled example.
+
+```
+player digs  →  Cala answers  →  chain continues  →  correction posted
+                     ↑                                       │
+                     └────────  specialist gets better  ◀─────┘
+```
+
+`backend/scripts/train_assay.py` bootstraps the same dataset from answers already
+sitting in the cache.
 
 ---
 
