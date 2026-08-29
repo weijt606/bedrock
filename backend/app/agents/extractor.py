@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 
 from .editorial import build_editorial
-from ..schemas import (Beat, BeatKind, ConcernReport, CoreSample, EditorialRoutes,
+from ..schemas import (Beat, BeatKind, Concern, ConcernReport, CoreSample, EditorialRoutes,
                        Flag, Gap, GuessPrompt, Layer, Meta, Score, Statute,
                        Subject, SupplyNode)
 
@@ -22,6 +22,43 @@ COUNTRY_NAMES = {
     "CH": "Switzerland", "BE": "Belgium", "IE": "Ireland", "PT": "Portugal",
     "SE": "Sweden", "DK": "Denmark", "AT": "Austria",
 }
+# The question put to the player for each concern the record turned out to
+# answer. Deliberately the same shape as the auditor's own probe: the player
+# is answering exactly the question Cala was asked.
+_CONCERN_QUESTION: dict[Concern, str] = {
+    Concern.child_labour:
+        "Has {e} been accused of child labour in its supply chain?",
+    Concern.forced_labour:
+        "Has {e} been linked to forced labour?",
+    Concern.environment:
+        "Has {e} been fined for environmental violations?",
+    Concern.deforestation:
+        "Has {e} been linked to deforestation?",
+    Concern.labour_rights:
+        "Has {e} faced lawsuits from its own workers?",
+    Concern.tax:
+        "Has {e} been investigated for tax avoidance?",
+    Concern.governance:
+        "Has {e} been sanctioned by a financial regulator?",
+    Concern.animal_welfare:
+        "Has {e} faced legal action over animal welfare?",
+}
+
+def _asked_about(report) -> str | None:
+    """Name the question after whoever the record is actually filed under.
+
+    "Has Nutella been accused of child labour?" is the wrong question — Cala has
+    nothing under Nutella and everything under Ferrero, so asking it that way
+    invites a "no" that the next card then contradicts for no good reason. The
+    flags carry the entity the finding is about; use the one that appears most.
+    """
+    counts: dict[str, int] = {}
+    for flag in report.flags:
+        if isinstance(flag.about, str) and flag.about.strip():
+            counts[flag.about.strip()] = counts.get(flag.about.strip(), 0) + 1
+    return max(counts, key=counts.get) if counts else None
+
+
 GUESS_COUNTRIES = ["ES", "NL", "LU", "DE", "IT", "US", "GB"]
 
 
@@ -75,6 +112,27 @@ class ExtractorAgent:
                 question=f"Is it still owned in {COUNTRY_NAMES.get(origin, origin)}?",
                 options=["Yes", "No"],
                 answer=("No" if score.left_home else "Yes") if ends_in else None,
+            ))
+
+        # A finding read as a bullet point is information. The same finding read
+        # after you have said out loud that you did not think so is an argument
+        # you just lost, and that is the difference between a report and this.
+        #
+        # Only concerns Cala actually answered become questions. Asking "do you
+        # think they use child labour?" about a company with nothing on file
+        # would plant the accusation the auditor exists to avoid — so a `clear`
+        # verdict is stated, never put to a vote.
+        for report in (concerns or []):
+            if report.status != "found" or not report.flags:
+                continue
+            guesses.append(GuessPrompt(
+                id=f"concern:{report.concern.value}",
+                question=_CONCERN_QUESTION[report.concern].format(
+                    e=_asked_about(report) or subject.resolved_name),
+                options=["Yes", "No"],
+                answer="Yes",
+                concern=report.concern,
+                stake=f"{len(report.flags)} on the record",
             ))
 
         now = time.time()

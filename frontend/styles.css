@@ -25,6 +25,7 @@ body {
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  padding-bottom: 4.5rem;   /* clears the floating credits */
 }
 
 /* ------------------------------------------------------------- masthead */
@@ -48,7 +49,7 @@ body {
   align-items: center;
   gap: clamp(1rem, 4vw, 3rem);
   padding: clamp(1.5rem, 5vh, 4rem) clamp(1.25rem, 4vw, 3.25rem) 3rem;
-  min-height: calc(100vh - 5rem);
+  min-height: calc(100vh - 9.5rem);
 }
 .start[hidden] { display: none; }
 .start__copy { max-width: 40rem; }
@@ -226,18 +227,33 @@ h1 em { font-style: normal; color: var(--red); }
    paper to the right — they must not overlap, because a label sitting on the
    rock is unreadable and the leader line is what does the pointing. Both are
    placed against the same box so the callouts line up with the strata. */
-.core { position: relative; align-self: stretch; min-height: 34rem; }
+/* Two real columns rather than two absolutely-positioned boxes. The image was
+   inset from the right and then centred inside what was left, so how far the
+   rock actually sat from its labels depended on the shape of the window — at
+   most widths the leader lines pointed at nothing. `justify-self: end` puts the
+   rock's edge on the column boundary, and the gutter *is* the length of the
+   leader line, so the two are attached by construction. */
+.core {
+  position: relative;
+  align-self: stretch;
+  min-height: clamp(21rem, 56vh, 34rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 12.5rem;
+  column-gap: 4.5rem;
+  align-items: center;
+}
 
 .core__default {
-  position: absolute; left: 0; right: 17rem; top: 4%; bottom: 4%;
-  margin: auto; display: block;
-  max-height: 100%; max-width: 100%; width: auto;
+  justify-self: end;
+  display: block;
+  max-height: clamp(21rem, 56vh, 34rem);
+  max-width: 100%; width: auto; height: auto;
   object-fit: contain;
   filter: drop-shadow(0 24px 34px rgba(40, 30, 20, .2));
 }
 
 .core__legend {
-  position: absolute; right: 0; top: 6%; bottom: 6%; width: 12.5rem;
+  position: relative; align-self: stretch;
   margin: 0; padding: 0; list-style: none;
 }
 .core__legend li {
@@ -250,7 +266,7 @@ h1 em { font-style: normal; color: var(--red); }
    labels it exists to serve. */
 .core__legend li::before {
   content: ""; position: absolute; right: 100%; top: 50%;
-  width: 4.5rem; height: 1.5px; background: #a7a09a;
+  width: 4.5rem; height: 1.5px; background: #a7a09a;   /* == the grid gutter */
 }
 .core__legend li::after {
   content: ""; position: absolute; right: calc(100% + 4.5rem); top: 50%;
@@ -409,9 +425,14 @@ body.is-loading .skeleton-screen { opacity: 1; }
 /* ------------------------------------------------------------- responsive */
 @media (max-width: 980px) {
   .start { grid-template-columns: 1fr; min-height: 0; }
-  .core { min-height: 24rem; order: -1; }
-  .core__stack { right: 30%; height: 100%; bottom: 0; }
-  .core__legend li { width: 9.5rem; }
+  /* Narrower gutter, and the leader line follows it — the two are one number in
+     two places, so they have to move together or the lines detach again. */
+  .core {
+    min-height: 24rem; order: -1;
+    grid-template-columns: minmax(0, 1fr) 9.5rem;
+    column-gap: 3rem;
+  }
+  .core__default { max-height: 24rem; }
   .core__legend li::before { width: 3rem; }
   .core__legend li::after { right: calc(100% + 3rem); }
 }
@@ -435,6 +456,14 @@ body.is-loading .skeleton-screen { opacity: 1; }
 
 .pc-eyebrow { font:500 .63rem/1 var(--mono); letter-spacing:.18em; text-transform:uppercase;
   color:var(--ink-soft); }
+/* The concern questions are the only cards where being wrong costs the reader
+   something, so their eyebrow is the one place the red is spent. */
+.pc-eyebrow--warn { color: var(--red); }
+.pc-eyebrow--warn::before {
+  content: ""; display: inline-block; vertical-align: .05em;
+  width: .42em; height: .42em; margin-right: .55em;
+  border-radius: 50%; background: currentColor;
+}
 .pc-head { font-family:var(--sans); font-weight:800; letter-spacing:-.035em; line-height:1.02;
   font-size:clamp(1.9rem,1rem + 3.6vw,3.2rem); max-width:18ch; text-wrap:balance; }
 .pc-head--under { font-weight:600; font-size:clamp(1.15rem,.85rem + 1.3vw,1.7rem);
@@ -571,4 +600,68 @@ body.is-loading .skeleton-screen { opacity: 1; }
 }
 .pc-nav__b:hover, .pc-nav__b:focus-visible {
   color: var(--ink); border-color: #c3bcae; background: #fff;
+}
+
+/* ---------------------------------------------------------------------------
+   who says what
+   ---------------------------------------------------------------------------
+   The distinction the whole project rests on, printed where it can be checked.
+   Cala is on its own line, at its own size, because Cala is the only one of
+   these that states a fact; the rest are listed with the job they do, so
+   "powered by" can never be read as "wrote the answer". */
+.credits {
+  /* Floated rather than placed. It is a standing declaration about every page
+     below it, so it stays legible without spending a screenful of the hero to
+     say so — and the hero keeps its own height instead of being squeezed. */
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  margin: 0;
+  padding: .78rem clamp(1.25rem, 4vw, 3.25rem) .85rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .85rem 2.5rem;
+}
+.credits__lead {
+  margin: 0;
+  display: flex; align-items: flex-start; gap: .6rem;
+  font-size: .84rem; line-height: 1.45;
+  color: var(--ink-soft);
+}
+.credits__lead img { flex: none; margin-top: .1rem; }
+.credits__lead b { color: var(--ink); font-weight: 800; }
+
+.credits__stack {
+  margin: 0; padding: 0; list-style: none;
+  display: flex; flex-wrap: wrap; gap: .5rem 1.5rem;
+}
+.credits__stack li {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: .42rem;
+}
+.credits__stack img { grid-row: span 2; width: 18px; height: 18px; }
+/* Pioneer's mark ships near-white — invisible on this paper. Flattening it to
+   black is a rendering of a monochrome logo, not a redrawing of it. */
+.credits__stack img.is-pale { filter: brightness(0); opacity: .8; }
+.credits__stack b {
+  align-self: end;
+  font-size: .78rem; font-weight: 700; color: var(--ink); line-height: 1.1;
+}
+.credits__stack span {
+  align-self: start;
+  font-family: var(--mono);
+  font-size: .62rem; color: var(--ink-soft);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+
+@media (max-width: 900px) {
+  .credits { padding-bottom: 2rem; }
+  .credits__stack { gap: .5rem 1.1rem; }
 }

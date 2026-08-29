@@ -85,18 +85,10 @@
             <button type="button" data-suggest="Starbucks">Starbucks</button>
           </div>
         </div>
-
-        <!-- The core sample. The plinth never changes — it is what everything is
-             made of. The product on top is whatever the person just named. -->
+          <!-- Fixed. The strata are the argument of the page, not a reaction to
+               the search box: everything on a shelf sits on the same six layers. -->
         <div class="core" aria-hidden="true">
-          <!-- Until there is a subject, the hero is the shot as taken — already
-               cut out, so nothing has to be masked and no dark ground shows. The
-               moment somebody names something it cross-fades to the plinth with
-               that product standing on it. -->
           <img class="core__default" src="assets/hero-default.png" alt="">
-          <div class="core__product" id="core-product">
-            <img id="core-product-img" alt="">
-          </div>
           <ul class="core__legend">
             <li style="--y:9%"><img src="assets/circle-dot-svgrepo-com.svg" alt=""><b>What you see</b><span>The product</span></li>
             <li style="--y:26%"><img src="assets/flask-2-svgrepo-com.svg" alt=""><b>Ingredients</b><span>What's inside</span></li>
@@ -128,10 +120,20 @@
         <button class="send-button send-button--wide" id="again" type="button">Trace another</button>
       </section>
 
-      <details class="response" id="response-panel" hidden>
-        <summary>Raw stream</summary>
-        <pre id="response-output"></pre>
-      </details>
+      <footer class="credits">
+        <p class="credits__lead">
+          <img src="assets/sponsor-cala.png" alt="Cala" width="22" height="22">
+          <span>Every fact on this page is stated by <b>Cala</b>.<br>
+          Not one of them is written by a language model.</span>
+        </p>
+        <ul class="credits__stack">
+          <li><img src="assets/sponsor-fal.png" alt="" width="18" height="18"><b>fal</b><span>speech, cut-outs</span></li>
+          <li><img class="is-pale" src="assets/sponsor-pioneer.png" alt="" width="18" height="18"><b>Pioneer</b><span>row classification</span></li>
+          <li><img src="assets/sponsor-openai.png" alt="" width="18" height="18"><b>OpenAI</b><span>phrasing lookups</span></li>
+          <li><img src="assets/sponsor-entire.png" alt="" width="18" height="18"><b>Entire</b><span>deploy</span></li>
+          <li><img src="assets/sponsor-aikido.png" alt="" width="18" height="18"><b>Aikido</b><span>dependency audit</span></li>
+        </ul>
+      </footer>
     </main>
 
     <p class="notice" id="notice" role="status"></p>

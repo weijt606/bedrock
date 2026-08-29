@@ -114,20 +114,41 @@ class AuditorAgent:
             return []
         # brand first — it is the name the person actually typed
         checked = list(dict.fromkeys([brand] + [e for e in entities if e]))
+        # ...but the record is filed under the company, not the label on the jar.
+        # Measured against the live API:
+        #
+        #   Nutella.labour_disputes                        -> nothing
+        #   Ferrero.labour_disputes                        -> 3 rows, dated, located
+        #   The Coca-Cola Company.environmental_violations -> 8 rows, with the suits
+        #
+        # Asking only what the person typed is how a company with a long file comes
+        # back clean, which is the worst thing this agent could do. So the direct
+        # probes go to the brand *and* to the companies above it.
+        targets = checked[:3]
         reports = await asyncio.gather(
-            *(self._one(brand, checked, c, emit) for c in concerns))
+            *(self._one(targets, checked, c, emit) for c in concerns))
         return list(reports)
 
-    async def _one(self, brand: str, checked: list[str], concern: Concern,
+    async def _one(self, targets: list[str], checked: list[str], concern: Concern,
                    emit: Emit) -> ConcernReport:
         report = ConcernReport(concern=concern, entities_checked=checked)
+        brand = targets[0]
 
-        # 1. the shared list question — warm for everyone after the first person asks
+        # The shared list question and every targeted one go out together. They
+        # were sequential, and at 35-100s per cold Cala call that alone spent the
+        # whole dig budget before the interesting rows landed. The client holds a
+        # semaphore, so concurrency here is a request to be queued politely rather
+        # than a way to get rate-limited.
         lq = LIST_QUERY[concern]
-        report.queries.append(lq)
-        await emit("probe", {"query": lq, "agent": self.name, "concern": concern.value})
-        listed = await self.cala.query(lq)
+        dqs = [DIRECT_QUERY[concern].format(e=t) for t in targets]
+        report.queries.extend([lq, *dqs])
+        for q in (lq, *dqs):
+            await emit("probe", {"query": q, "agent": self.name,
+                                 "concern": concern.value})
+        listed, *directs = await asyncio.gather(
+            self.cala.query(lq), *(self.cala.query(q) for q in dqs))
 
+        # 1. the shared list — warm for everyone after the first person asks
         if listed.rows:
             src = source_of(listed)
             for row in listed.rows:
@@ -147,12 +168,10 @@ class AuditorAgent:
                     source=src,
                 ))
 
-        # 2. a targeted question about the brand, which catches what a list misses
-        dq = DIRECT_QUERY[concern].format(e=brand)
-        report.queries.append(dq)
-        await emit("probe", {"query": dq, "agent": self.name, "concern": concern.value})
-        direct = await self.cala.query(dq)
-        if direct.rows and direct.error != "too_complex":
+        # 2. the targeted questions, which catch what a list misses
+        for target, direct in zip(targets, directs):
+            if not direct.rows or direct.error == "too_complex":
+                continue
             src = source_of(direct)
             for row in direct.rows[:5]:
                 answered, positive, label = _verdict(row)
@@ -171,9 +190,21 @@ class AuditorAgent:
                     parties=row.get("parties"),
                     summary=_context(row),
                     concern=concern,
-                    about=row.get("name") if isinstance(row.get("name"), str) else brand,
+                    about=row.get("name") if isinstance(row.get("name"), str) else target,
                     source=src,
                 ))
+
+        # The same incident can arrive from the list and from two targets. It is one
+        # finding either way, and printing it three times reads as three companies.
+        seen: set[str] = set()
+        unique: list[Flag] = []
+        for flag in report.flags:
+            key = _key(flag.title)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(flag)
+        report.flags = unique
 
         report.status = "found" if report.flags else "clear"
         await emit("concern", report.model_dump(mode="json"))
