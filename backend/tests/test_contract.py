@@ -428,3 +428,22 @@ def test_only_containers_the_model_accepts_are_sent():
     from app.clients.falstt import _EXT
     assert _EXT["audio/wav"] == "wav" and _EXT["audio/mpeg"] == "mp3"
     assert "audio/webm" not in _EXT
+
+
+def test_editorial_reaches_the_wire():
+    """Task 7: the routes were built and tested but nothing called them, so
+    `CoreSample` never carried an `editorial` field. This pins the assembly."""
+    from app.agents.extractor import ExtractorAgent
+    from app.schemas import EditorialRoutes, Source, StructureRoute, Subject
+
+    sample = ExtractorAgent().build(
+        sample_id="t", started_at=0.0,
+        subject=Subject(raw_input="x", resolved_name="x"),
+        layers=[Layer(index=0, name="Ferrero Group", kind="company",
+                      source=Source(query="q", latency_s=0.5))],
+        supply=[], statutes=[], flags=[], siblings=[], gaps=[],
+        editorial=EditorialRoutes(structure=StructureRoute(status="partial")),
+        queries_run=1, cache_hits=0, agents=[], models={})
+
+    assert sample.editorial is not None
+    assert sample.editorial.structure.status == "partial"
