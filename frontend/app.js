@@ -648,3 +648,14 @@ againButton?.addEventListener('click', () => {
   subject.focus();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
+
+// Popular searches: fill the box and run it. Same path as typing, so nothing
+// downstream has to know a chip was clicked.
+document.querySelectorAll('.popular button[data-suggest]').forEach((chip) => {
+  chip.addEventListener('click', () => {
+    clearDemo();
+    subject.value = chip.dataset.suggest;
+    resize();
+    form.requestSubmit();
+  });
+});

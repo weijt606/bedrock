@@ -1,16 +1,16 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#fbf3e4" />
-    <title>Bedrock — Start a trace</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bedrock — know what you're actually eating</title>
+    <link rel="icon" href="assets/Logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap">
+    <link rel="stylesheet" href="styles.css">
   </head>
-  <body class="is-loading is-demo">
+  <body class="is-loading">
     <div class="skeleton-screen" aria-hidden="true">
       <div class="skeleton skeleton-logo"></div>
       <div class="skeleton-stack">
@@ -21,62 +21,79 @@
       </div>
     </div>
 
-    <main class="app" id="app" aria-busy="true">
-      <a class="brand" href="#start" aria-label="Bedrock home">
-        <img src="assets/bedrock-logo.svg" alt="Bedrock" />
+    <header class="masthead">
+      <a class="brand" href="./">
+        <img src="assets/Logo.png" alt="" width="40" height="38">
+        <span>bedrock</span>
       </a>
+      <p class="tagline">Before the next bite</p>
+    </header>
 
-      <section class="start" id="start" aria-labelledby="start-title">
-          <p class="eyebrow">BEFORE THE NEXT BITE</p>
-          <h1 id="start-title">Know what you’re<br /><em>actually eating.</em></h1>
-          <p class="lede">Start with any food or brand. Bedrock reveals the companies, people and public records behind what ends up on your plate.</p>
+    <main class="app" id="app" aria-busy="true">
+      <section class="start" id="start">
+        <div class="start__copy">
+          <h1 id="start-title">Know what you're<br><em>actually eating.</em></h1>
+          <p class="lede">
+            Start with any food or brand. Bedrock reveals the companies, people and
+            public records behind what ends up on your plate.
+          </p>
 
-        <form class="composer" id="intake-form">
-          <label class="sr-only" for="subject">Food, product or brand</label>
-          <div class="media-preview" id="media-preview" hidden>
-            <img id="photo-preview" alt="Selected product photo" />
-            <button class="remove-media" id="remove-photo" type="button" aria-label="Remove photo" title="Remove photo">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
-            </button>
-          </div>
-          <textarea id="subject" rows="1" autocomplete="off" spellcheck="false" placeholder=""></textarea>
-          <div class="composer__bar">
-            <div class="default-controls">
-              <div class="composer__actions">
-              <input id="photo-input" type="file" accept="image/*" hidden />
-              <button class="icon-button" id="photo-button" type="button" aria-label="Add a photo" title="Add a photo">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h2l1.2-1.7h4.6L15.5 5h2A2.5 2.5 0 0 1 20 7.5v9A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z"/><circle cx="12" cy="12" r="3.2"/></svg>
-              </button>
-              <span class="attachment-label" id="attachment-label"></span>
+          <form class="composer" id="intake-form" autocomplete="off">
+            <div class="media-preview" id="media-preview" hidden>
+              <img id="photo-preview" alt="">
+              <span id="attachment-label"></span>
+              <button class="remove-media" id="remove-photo" type="button" aria-label="Remove photo">&times;</button>
+            </div>
+
+            <div class="composer__bar">
+              <textarea id="subject" rows="1" placeholder="Coca-Cola" aria-label="Product or brand"></textarea>
+
+              <div class="default-controls">
+                <div class="composer__actions">
+                  <button class="icon-button" id="photo-button" type="button" aria-label="Photograph the label">
+                    <img src="assets/camera-svgrepo-com.svg" alt="" width="21" height="21">
+                  </button>
+                  <input id="photo-input" type="file" accept="image/*" capture="environment" hidden>
+                  <button class="icon-button" id="voice-button" type="button" aria-label="Say the name">
+                    <img src="assets/microphone-alt-1-svgrepo-com.svg" alt="" width="19" height="19">
+                  </button>
+                  <button class="send-button" type="submit" aria-label="Trace it">
+                    <img src="assets/magnifying-glass-backup-svgrepo-com.svg" alt="" width="20" height="20">
+                  </button>
+                </div>
               </div>
-              <div class="composer__actions">
-                <button class="icon-button" id="voice-button" type="button" aria-label="Record a voice note" title="Record a voice note">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3M9 20h6"/></svg>
-                </button>
-                <button class="send-button" type="submit" aria-label="Start trace">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7M12 19V5"/></svg>
-                </button>
+
+              <div class="recording-controls" hidden>
+                <button class="recording-button" id="cancel-recording" type="button">Cancel</button>
+                <div class="waveform" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <button class="recording-button stop-button" id="stop-recording" type="button">Stop</button>
               </div>
             </div>
-            <div class="recording-controls" aria-label="Voice note recording controls" hidden>
-              <button class="recording-button" id="cancel-recording" type="button" aria-label="Cancel recording" title="Cancel recording">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
-              </button>
-              <div class="waveform" aria-label="Recording voice note" role="img">
-                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-              </div>
-              <button class="recording-button stop-button" id="stop-recording" type="button" aria-label="Stop recording" title="Stop recording"><span></span></button>
-              <button class="send-button" type="submit" aria-label="Start trace">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7M12 19V5"/></svg>
-              </button>
-            </div>
+          </form>
+
+          <p class="helper" id="helper"></p>
+
+          <div class="popular">
+            <span>Popular searches:</span>
+            <button type="button" data-suggest="Nutella">Nutella</button>
+            <button type="button" data-suggest="Coca-Cola">Coca-Cola</button>
+            <button type="button" data-suggest="Oreo">Oreo</button>
+            <button type="button" data-suggest="Starbucks">Starbucks</button>
           </div>
-        </form>
-        <p class="helper" id="helper" aria-live="polite">For example: <span>Starbucks Macchiato</span></p>
-        <details class="response-panel" id="response-panel" hidden open>
-          <summary>Bedrock response</summary>
-          <pre id="response-output"></pre>
-        </details>
+        </div>
+
+        <!-- The core sample. Six strata, each one a question the dig answers. -->
+        <div class="core" aria-hidden="true">
+          <img class="core__stack" src="assets/Coca-cola.png" alt="">
+          <ul class="core__legend">
+            <li style="--y:9%"><img src="assets/circle-dot-svgrepo-com.svg" alt=""><b>What you see</b><span>The product</span></li>
+            <li style="--y:26%"><img src="assets/flask-2-svgrepo-com.svg" alt=""><b>Ingredients</b><span>What's inside</span></li>
+            <li style="--y:43%"><img src="assets/factory-svgrepo-com.svg" alt=""><b>Manufacturing</b><span>How it's made</span></li>
+            <li style="--y:60%"><img src="assets/leaf-svgrepo-com.svg" alt=""><b>Planet impact</b><span>The cost to Earth</span></li>
+            <li style="--y:77%"><img src="assets/legal-hammer-symbol-svgrepo-com.svg" alt=""><b>Legal &amp; ethical</b><span>Is it compliant?</span></li>
+            <li style="--y:93%"><img src="assets/circle-quarters-svgrepo-com.svg" alt=""><b>The bottom line</b><span>The full truth</span></li>
+          </ul>
+        </div>
       </section>
 
       <section class="dig" id="dig" hidden>
@@ -96,10 +113,16 @@
           <summary>Every document behind this <span id="sources-count"></span></summary>
           <ul class="sources__list" id="sources"></ul>
         </details>
-        <button class="send-button" id="again" type="button">Trace another</button>
+        <button class="send-button send-button--wide" id="again" type="button">Trace another</button>
       </section>
+
+      <details class="response" id="response-panel" hidden>
+        <summary>Raw stream</summary>
+        <pre id="response-output"></pre>
+      </details>
     </main>
-    <div class="notice" id="notice" role="status" aria-live="polite"></div>
+
+    <p class="notice" id="notice" role="status"></p>
     <script src="app.js"></script>
   </body>
 </html>
