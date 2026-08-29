@@ -35,7 +35,8 @@ weekend — at a hackathon a broken `main` at hour 20 is unrecoverable.
 
 ```bash
 cd backend
-python3.12 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+python3.12 -m venv .venv
+./.venv/bin/pip install -r requirements.txt
 set -a && . ../.env && set +a
 ./.venv/bin/uvicorn app.main:app --reload --port 8000
 ./.venv/bin/pytest -q          # no network needed

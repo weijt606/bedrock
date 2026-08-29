@@ -17,6 +17,10 @@ from typing import Any, Callable, Iterable
 _SUFFIXES = (
     "spa", "sa", "nv", "bv", "gmbh", "ag", "plc", "ltd", "limited",
     "llc", "inc", "corp", "corporation", "co", "pty", "llp", "lp",
+    # The chains this walks are mostly European and mostly German-speaking at the
+    # top: Henkell & Co. Sektkellerei KG, Dr. August Oetker KG. Without these a
+    # company matches nothing one hop above itself.
+    "kg", "kgaa", "ohg", "se", "sarl", "sas", "srl", "bvba", "aps", "oyj",
 )
 
 

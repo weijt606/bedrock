@@ -29,6 +29,7 @@ from typing import Any, Awaitable, Callable
 
 from ..clients.cala import CalaClient
 from ..clients.pioneer import PioneerClient, is_placeholder
+from .depuration import normalise_name as _key
 from ..schemas import EntityKind, Gap, Layer
 from .base import source_of
 
@@ -122,16 +123,3 @@ class ReaderAgent:
         })
         return layers, []
 
-
-_NOISE = re.compile(
-    r"\b(group|holdings?|company|co|corp|inc|ltd|limited|plc|llc|s\.?a\.?u?|"
-    r"s\.?l\.?|b\.?v\.?|n\.?v\.?|gmbh|kg|spa|ag|sa|the)\b\.?", re.I)
-
-
-def _key(name: str) -> str:
-    """Fold a name hard enough that "Nestlé", "Nestlé S.A." and "Nestlé Nespresso
-    SA" do not each become their own layer."""
-    n = (name or "").lower()
-    for a, b in (("é", "e"), ("è", "e"), ("ñ", "n"), ("ü", "u"), ("ö", "o"), ("á", "a")):
-        n = n.replace(a, b)
-    return re.sub(r"[^a-z0-9]+", " ", _NOISE.sub(" ", n)).strip()

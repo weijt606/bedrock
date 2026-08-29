@@ -485,3 +485,25 @@ def test_a_photograph_outranks_what_we_read_off_it():
     assert "swapProduct(url, 'Your photograph')" in js
     hero_path = js[js.index("async function showProductForPhoto"):js.index("document.addEventListener('bedrock:frame'")]
     assert "createObjectURL" not in hero_path
+
+
+def test_one_name_normaliser_and_it_keeps_group_apart_from_the_parent():
+    """There were three of these with different rules. Two of them stripped
+    "Group" and "Holdings", which folds `Ferrero Group` into `Ferrero` — a
+    different entity one step up the same chain, so a dig would have collapsed
+    two links into one and reported a shorter chain than exists.
+
+    `depuration.normalise_name` is the one that got it right, and is now the only
+    one: legal form comes off, the rest of the name does not.
+    """
+    from app.agents.auditor import _key as auditor_key
+    from app.agents.depuration import normalise_name
+    from app.agents.reader import _key as reader_key
+
+    assert reader_key is normalise_name and auditor_key is normalise_name
+
+    assert normalise_name("Ferrero") != normalise_name("Ferrero Group")
+    assert normalise_name("Perfetti Van Melle") != normalise_name("Perfetti Van Melle Group")
+    # legal form and accents are noise, and do come off
+    assert normalise_name("Nestle") == normalise_name("Nestlé S.A.")
+    assert normalise_name("Henkell & Co. KG") == normalise_name("Henkell & Co.")
