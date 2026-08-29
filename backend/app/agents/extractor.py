@@ -357,6 +357,7 @@ def build_story(subject: Subject, layers: list[Layer], score: Score,
                     entities=[about],
                     at_step=step,
                     source=flag.source,
+                    concern=report.concern,
                 ))
         elif report.status == "clear":
             beats.append(Beat(
@@ -366,6 +367,7 @@ def build_story(subject: Subject, layers: list[Layer], score: Score,
                         f"this chain. An empty record is not a clean record."),
                 weight=0.35,
                 entities=report.entities_checked[:6],
+                concern=report.concern,
             ))
 
     # --- what nobody wrote down ---------------------------------------------- #

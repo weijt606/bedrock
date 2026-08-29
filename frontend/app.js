@@ -116,6 +116,7 @@ const setRecording = (active) => {
 };
 const removeSelectedPhoto = () => {
   selectedPhoto = null;
+  labelRead = null;
   photoInput.value = '';
   photoPreview.removeAttribute('src');
   mediaPreview.hidden = true;
@@ -225,6 +226,11 @@ async function transcribeVoice(audio) {
     });
   }
 }
+// Submit used to race this: a reader who pressed Enter before the label came
+// back sent whatever was still in the box. Holding the promise lets the send
+// wait for the answer it is about to need.
+let labelRead = null;
+
 async function describePhoto(photo) {
   try {
     helper.textContent = 'Reading the label…';
@@ -406,6 +412,8 @@ photoInput.addEventListener('change', () => {
   const [photo] = photoInput.files;
   if (!photo) return;
   clearDemo();
+  subject.value = '';
+  resize();
   selectedPhoto = photo;
   photoPreview.src = URL.createObjectURL(photo);
   mediaPreview.hidden = false;
@@ -413,7 +421,7 @@ photoInput.addEventListener('change', () => {
   photoButton.classList.add('active');
   helper.textContent = 'Photo attached — reading the label…';
   showJson('Photo ready for Bedrock', { kind: 'image', mime: photo.type, bytes: photo.size });
-  void describePhoto(photo);
+  labelRead = describePhoto(photo);
 });
 removePhoto.addEventListener('click', removeSelectedPhoto);
 voiceButton.addEventListener('click', startRecording);
@@ -446,6 +454,9 @@ form.addEventListener('submit', async (event) => {
   try {
     working(true);
     resetResponse();
+    // A photo attached seconds ago is the reader's real question; the box may
+    // still hold what they typed before reaching for the camera.
+    if (labelRead) await labelRead;
     let payload;
     if (subject.value.trim()) {
       payload = { kind: 'text', text: subject.value.trim(), depth: 4 };
@@ -712,6 +723,7 @@ document.addEventListener('bedrock:result', (event) => {
 againButton?.addEventListener('click', () => {
   resultView.hidden = true;
   digView.hidden = true;
+  removeSelectedPhoto();
   subject.value = '';
   resize();
   subject.focus();

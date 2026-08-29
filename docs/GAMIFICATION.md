@@ -27,6 +27,36 @@ Three pre-built prompts arrive on `done`, but you can render them from the
 `still_domestic` is the cruellest and the best: it is binary, it is always
 askable, and most people say Yes.
 
+**Answer on the very next card.** A wager the deck settles eight cards later is
+a quiz; a wager settled immediately is a position the player has just lost. So
+every question is followed by the card that answers it:
+
+| Question | Answered by |
+|---|---|
+| a chain wager | a `reveal` card — what they said, then what it is |
+| a `concern` wager | the `concern` beat carrying the same `concern` value |
+| `siblings_count` | the count itself, counting up |
+
+Pair a concern wager to its beat on `Beat.concern`, and deal it one card before
+that beat — **not** in a block. Asked three at a time, the second and third are
+settled several cards later with nothing on screen tying answer to question.
+
+The concern wager is the one case where the answering card must be the beat
+rather than a `reveal`, and that is not a stylistic choice: a card that says
+**Yes** in 5rem type about a named company, with no document on it, is the
+accusation §6 exists to avoid. The beat carries its `source`.
+
+The findings after a reveal stop being a slow march to a punchline and become
+the evidence for one the player already took. What they committed to is quoted
+back on the answering card, so being wrong is stated rather than left to memory
+— and it is on screen the moment the card is, never on a fade. A reader clicking
+at demo speed is past the card before a 900ms reveal has finished arriving.
+
+**Never deal a card that gives a wager away before it is asked.** The
+`convergence` beat states the sibling count that `siblings_count` is about to
+bet on, and the `silence` beat says what the silence card spends four lines
+building to. Drop the beat when the card is dealt.
+
 ## 2. Dig — from `probe`, `layer`, `gap`
 
 - `probe` → print the query **verbatim** and start a seconds counter. Showing the
@@ -119,6 +149,10 @@ Then reveal. It is usually not the one on the packet.
 Deliberately not on the server — it belongs to the player, not the sample.
 Suggested: +1 per correct guess, and a running "wrong" count that is the real
 message. Most people are wrong most of the time; the tally is the argument.
+
+The end-of-deck tally is a recap, not a reveal — every line in it was already
+shown on the card that answered it. It is there to total the losses, which is a
+different job from landing them.
 
 ## What the game must never do
 

@@ -390,6 +390,9 @@ class Beat(BaseModel):
                                 description="Who this beat is about — highlight these")
     at_step: int | None = Field(None, description="Which layer of the dig it belongs to")
     source: Source | None = None
+    concern: Concern | None = Field(
+        None, description="Which concern this beat answers, when it answers one. "
+                          "The game layer pairs it with the matching GuessPrompt.")
 
 
 class GuessPrompt(BaseModel):

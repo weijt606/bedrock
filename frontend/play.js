@@ -63,6 +63,14 @@
     silence: 'Nobody has written this down', scale: 'A number worth feeling',
   };
 
+  /* A wager is answered on the card immediately after it, so the answer has to
+   * complete a sentence on its own. These are the second halves; a wager not
+   * listed falls back to its own question, which already reads as one. */
+  const REVEAL_UNDER = {
+    ends_in_country: 'is where the ownership ends.',
+    hops_to_human: 'steps until you reach a person.',
+  };
+
   function build(sample) {
     const cards = [];
     // An unanswered guess is a question the deck can never settle: the verdict
@@ -78,34 +86,75 @@
     const chainBets = guesses.filter((g) => !g.concern).slice(0, 2);
     const concernBets = guesses.filter((g) => g.concern);
 
-    chainBets.forEach((g, n) => cards.push({
-      kind: 'bet', id: g.id,
-      html: '<p class="pc-eyebrow">'
-        + (n === 0 ? 'Before we show you anything' : 'One more') + '</p>'
-        + '<h2 class="pc-head">' + esc(g.question) + '</h2>'
-        + '<div class="pc-chips" role="group" aria-label="Your answer">'
-        + g.options.map((o) => '<button class="pc-chip" type="button" data-pick="'
-            + esc(o) + '">' + esc(o) + '</button>').join('')
-        + '</div><p class="pc-say">Pick one. We will hold you to it.</p>',
-    }));
+    chainBets.forEach((g, n) => {
+      cards.push({
+        kind: 'bet', id: g.id,
+        html: '<p class="pc-eyebrow">'
+          + (n === 0 ? 'Before we show you anything' : 'One more') + '</p>'
+          + '<h2 class="pc-head">' + esc(g.question) + '</h2>'
+          + '<div class="pc-chips" role="group" aria-label="Your answer">'
+          + g.options.map((o) => '<button class="pc-chip" type="button" data-pick="'
+              + esc(o) + '">' + esc(o) + '</button>').join('')
+          + '</div><p class="pc-say">Pick one. We will hold you to it.</p>',
+      });
+      // Held back to the verdict, this answer arrived eight cards after the
+      // reader committed to it, by which time being wrong cost nothing. It
+      // lands here instead, and the beats that follow become its evidence.
+      cards.push({ kind: 'reveal', id: g.id, guess: g });
+    });
 
-    let concernBetsDealt = false;
+    // A concern wager is asked one card before the record answers it, so it has
+    // to be dealt against the beat that answers it — not in a block. Three of
+    // them at the first concern beat meant the second and third were settled
+    // several cards later with nothing on screen tying answer to question.
+    const betFor = {};
+    concernBets.forEach((g) => { if (g.concern) betFor[g.concern] = g; });
+    const askedConcern = {};
+    let concernsAsked = 0;
+    // `Beat.concern` is the reliable pairing, but a page served against a
+    // backend that predates the field would get undefined for every beat and
+    // silently deal no concern wagers at all. The headline is templated from
+    // the same enum value, so fall back to reading it out of the sentence.
+    const concernOf = (beat) => {
+      if (beat.concern) return beat.concern;
+      const line = String(beat.headline || '').toLowerCase();
+      return Object.keys(betFor).find(
+        (c) => line.indexOf(c.replace(/_/g, ' ')) !== -1) || null;
+    };
+
+    // The siblings count and the run of empty queries each get a card of their
+    // own further down. The beats that carry the same fact would spoil the
+    // wager and repeat the silence, so they are dropped rather than dealt.
+    const kin = (sample.siblings || []).filter(Boolean);
+    const dealSiblings = kin.length >= 6;
+    const dealSilence = (sample.gaps || []).some((g) => g.reason === 'no_rows');
+    const seenHeadline = {};
+
     (sample.story || []).forEach((beat) => {
-      // The questions land immediately before the first finding, so the answer is
-      // the very next card. Asked at the top of the deck they would be trivia;
-      // asked here they are a position the reader took a moment ago.
-      if (beat.kind === 'concern' && !concernBetsDealt) {
-        concernBetsDealt = true;
-        concernBets.forEach((g, n) => cards.push({
+      if (beat.kind === 'convergence' && dealSiblings) return;
+      if (beat.kind === 'silence' && dealSilence) return;
+      // The backend deals two beats per concern, one per flag, and they often
+      // differ only in the detail line — so the headline reads twice.
+      if (seenHeadline[beat.headline]) return;
+      seenHeadline[beat.headline] = true;
+
+      let saidIds = '';
+      const topic = beat.kind === 'concern' ? concernOf(beat) : null;
+      const g = topic && !askedConcern[topic] ? betFor[topic] : null;
+      if (topic) askedConcern[topic] = true;
+      if (g) {
+        cards.push({
           kind: 'bet', id: g.id,
           html: '<p class="pc-eyebrow pc-eyebrow--warn">'
-            + (n === 0 ? 'Something you should know' : 'And this one') + '</p>'
+            + (concernsAsked === 0 ? 'Something you should know' : 'And this one') + '</p>'
             + '<h2 class="pc-head">' + esc(g.question) + '</h2>'
             + '<div class="pc-chips" role="group" aria-label="Your answer">'
             + g.options.map((o) => '<button class="pc-chip" type="button" data-pick="'
                 + esc(o) + '">' + esc(o) + '</button>').join('')
             + '</div><p class="pc-say">Answer, then read what is on file.</p>',
-        }));
+        });
+        concernsAsked += 1;
+        saidIds = g.id;
       }
       const fig = splitFigure(beat.headline);
       const head = fig
@@ -127,6 +176,8 @@
       cards.push({
         kind: 'beat', beat: beat.kind, at: beat.at_step, late: !!headline,
         html: '<p class="pc-eyebrow">' + esc(KIND_LABEL[beat.kind] || beat.kind) + '</p>'
+          + (saidIds
+              ? '<p class="pc-eyebrow pc-said" data-said="' + esc(saidIds) + '"></p>' : '')
           + shown
           + (beat.detail ? '<p class="pc-say">' + esc(beat.detail) + '</p>' : '')
           + citeHtml(beat.source),
@@ -136,8 +187,7 @@
     // Siblings become a wager on scale, then a staggered reveal. We do not ask
     // the reader to pick this owner's brands out of a line-up, because the
     // decoys would be claims about other companies that Cala never verified.
-    const kin = (sample.siblings || []).filter(Boolean);
-    if (kin.length >= 6) {
+    if (dealSiblings) {
       const company = [...(sample.layers || [])].reverse().find((l) => l.kind === 'company');
       const owner = (company && company.name)
         || (sample.subject && sample.subject.resolved_name) || 'the same owner';
@@ -154,6 +204,7 @@
       cards.push({
         kind: 'kin', items: kin.slice(0, 40),
         html: '<p class="pc-eyebrow">You have been choosing between them</p>'
+          + '<p class="pc-eyebrow pc-said" data-said="siblings_count"></p>'
           + '<p class="pc-figure" data-count="' + kin.length + '">0</p>'
           + '<h2 class="pc-head pc-head--under">brands, one owner.</h2>'
           + '<ul class="pc-kin" id="pcKin"></ul>',
@@ -230,6 +281,30 @@
       requestAnimationFrame(step);
     };
 
+    const guessById = {};
+    (sample.guesses || []).forEach((g) => { guessById[g.id] = g; });
+
+    // `siblings_count` is the one wager with no GuessPrompt behind it — the deck
+    // asks it, so the deck has to know what the right band was.
+    const truthFor = (id) => {
+      if (id === 'siblings_count') {
+        const n = (sample.siblings || []).length;
+        return n < 10 ? 'under 10' : (n <= 40 ? '10 to 40' : 'more than 40');
+      }
+      return guessById[id] ? guessById[id].answer : null;
+    };
+
+    const revealHtml = (g) => {
+      const mine = picks[g.id];
+      const right = mine && mine === g.answer;
+      return '<p class="pc-eyebrow' + (mine && !right ? ' pc-eyebrow--warn' : '') + '">'
+        + (mine ? (right ? 'You called it' : 'You said ' + esc(mine)) : 'The answer')
+        + '</p>'
+        + '<p class="pc-answer">' + esc(g.answer) + '</p>'
+        + '<h2 class="pc-head pc-head--under">'
+        + esc(REVEAL_UNDER[g.id] || g.question) + '</h2>';
+    };
+
     const verdictHtml = () => {
       const rows = [];
       let missed = 0;
@@ -246,14 +321,15 @@
         rows.push('<div><b>' + esc(mine || '—') + '</b><span>you said</span></div>'
           + '<div><b>' + esc(g.answer) + '</b><span>it is</span></div>');
       });
-      const kin = (sample.siblings || []).length;
       if (picks.siblings_count) {
-        const band = kin < 10 ? 'under 10' : (kin <= 40 ? '10 to 40' : 'more than 40');
-        if (picks.siblings_count !== band) missed += 1;
+        if (picks.siblings_count !== truthFor('siblings_count')) missed += 1;
         rows.push('<div><b>' + esc(picks.siblings_count) + '</b><span>you guessed</span></div>'
-          + '<div><b>' + kin + '</b><span>there are</span></div>');
+          + '<div><b>' + (sample.siblings || []).length
+          + '</b><span>there are</span></div>');
       }
-      const asked = rows.length / 2;
+      // One push is one question, not one cell. Halving it counted four wagers
+      // as two, so a reader who got three wrong was told "3 of 2".
+      const asked = rows.length;
       return '<p class="pc-eyebrow">What you said, and what is filed</p>'
         + '<p class="pc-figure" data-count="' + missed + '">0</p>'
         + '<h2 class="pc-head pc-head--under">'
@@ -283,8 +359,25 @@
 
       stage.innerHTML = '<section class="pc-card" data-kind="' + esc(card.kind) + '"'
         + (back ? ' data-back="1"' : '') + '>'
-        + (card.kind === 'verdict' ? verdictHtml() : card.html) + '</section>';
+        + (card.kind === 'verdict' ? verdictHtml()
+           : card.kind === 'reveal' ? revealHtml(card.guess)
+           : card.html) + '</section>';
       pips.forEach((p, k) => p.classList.toggle('on', k <= i));
+
+      // A card that answers a wager restates the position the reader took, so
+      // being wrong is stated rather than left to memory. Filled here for the
+      // same reason the reveal card is: build() runs before the first click.
+      // It is deliberately not on the late-fade — a reader clicking at demo
+      // speed was past the card before the answer had finished appearing.
+      stage.querySelectorAll('[data-said]').forEach((el) => {
+        const ids = el.dataset.said.split(',').filter(Boolean);
+        const said = ids.map((id) => picks[id]).filter(Boolean);
+        if (!said.length) { el.remove(); return; }
+        const wrong = ids.some((id) => picks[id] && truthFor(id)
+          && picks[id] !== truthFor(id));
+        el.className = 'pc-eyebrow pc-said' + (wrong ? ' pc-eyebrow--warn' : '');
+        el.textContent = 'You said ' + said.join(' and ') + '.';
+      });
 
       // Going down. The ground cools by one step per ownership card, so the
       // reader feels the descent rather than being told about it — the same
