@@ -226,3 +226,45 @@ def test_registry_placeholders_are_not_entities(name):
     40-second Cala query and puts a company that does not exist into the chain —
     observed live on a Nespresso dig."""
     assert _heuristic(name, {})["kind"] == "not_an_entity"
+
+
+# --------------------------------------------------------------------------- #
+#  auditor — reading a compliance answer without turning a denial into a claim
+# --------------------------------------------------------------------------- #
+
+def test_an_explicit_no_is_never_a_finding():
+    """Cala answers a direct question with a boolean column. Filing a "no" as a
+    flag would turn a denial into an accusation — the exact failure this agent
+    exists to avoid."""
+    from app.agents.auditor import _verdict
+    assert _verdict({"name": "Nestlé", "accused_of_child_labour": "yes"})[:2] == (True, True)
+    assert _verdict({"name": "Chupa Chups", "accused_of_child_labour": "no"})[:2] == (True, False)
+    assert _verdict({"company": "Apple", "sector": "Technology"})[:2] == (False, False)
+
+
+def test_flag_context_copies_values_and_computes_nothing():
+    from app.agents.auditor import _context, _title
+    row = {"incident": "Nestlé Waters — Illegal Water Drilling", "location": "France",
+           "year": 2024, "fine_amount": "2 million", "fine_currency": "EUR",
+           "description": "Fined over allegations of illegal water drilling."}
+    assert _title(row) == "Nestlé Waters — Illegal Water Drilling"
+    ctx = _context(row)
+    assert "France" in ctx and "2024" in ctx and "2 million EUR" in ctx
+
+
+def test_entity_matching_survives_legal_suffixes_and_accents():
+    from app.agents.auditor import _matches
+    assert _matches("Nestle", "Nestlé S.A.")
+    assert _matches("Perfetti Van Melle", "Perfetti Van Melle Group B.V.")
+    assert not _matches("Apple", "Chupa Chups")
+    # too short to be safe — must not fire
+    assert not _matches("BP", "BP p.l.c.")
+
+
+def test_every_concern_has_both_probes():
+    """A concern with a missing template would silently never be checked."""
+    from app.agents.auditor import DIRECT_QUERY, LIST_QUERY
+    from app.schemas import Concern
+    for c in Concern:
+        assert c in LIST_QUERY and c in DIRECT_QUERY, c
+        assert "{e}" in DIRECT_QUERY[c], c
