@@ -23,12 +23,12 @@ import time
 import uuid
 from typing import Any, AsyncIterator
 
-from .agents import (ExtractorAgent, IntakeAgent, ProspectorAgent, ReaderAgent,
-                     RecorderAgent, StatuteAgent, SurveyorAgent)
+from .agents import (AuditorAgent, ExtractorAgent, IntakeAgent, ProspectorAgent,
+                     ReaderAgent, RecorderAgent, StatuteAgent, SurveyorAgent)
 from .clients import CalaClient, FalClient, LLMClient, PioneerClient
 from .config import settings
-from .schemas import (CoreSample, EventType, Flag, Gap, Layer, SampleRequest,
-                      Statute, StreamEvent, Subject, SupplyNode)
+from .schemas import (ConcernReport, CoreSample, EventType, Flag, Gap, Layer,
+                      SampleRequest, Statute, StreamEvent, Subject, SupplyNode)
 
 
 class Orchestrator:
@@ -43,6 +43,7 @@ class Orchestrator:
         self.surveyor = SurveyorAgent(self.cala)
         self.statute = StatuteAgent(self.cala)
         self.recorder = RecorderAgent(self.cala)
+        self.auditor = AuditorAgent(self.cala)
         self.extractor = ExtractorAgent()
 
     async def aclose(self) -> None:
@@ -67,7 +68,7 @@ class Orchestrator:
 
         # ---- 1. resolve the input -------------------------------------- #
         subject = await self.intake.run(req)
-        yield frame("subject", subject.model_dump(), self.intake.name)
+        yield frame("subject", subject.model_dump(mode="json"), self.intake.name)
         if not subject.resolved_name:
             yield frame("error", {"message": "Could not read a product name from that input."})
             return
@@ -97,6 +98,7 @@ class Orchestrator:
         gaps: list[Gap] = []
         siblings: list[str] = []
         prose_layers: list[Layer] = []
+        concerns: list[ConcernReport] = []
 
         async def read_prose() -> None:
             """The fast path. Cala answers `knowledge/search` in about a second
@@ -116,6 +118,15 @@ class Orchestrator:
             layers.extend(ls)
             gaps.extend(gs)
             # siblings depend on the terminal owner, so this is chained, not parallel
+            # Now that we know who is above the brand, ask the questions the
+            # person actually came for — against every one of them, not just the
+            # name on the packet.
+            if req.concerns:
+                names = [l.name for l in ls] + [n.name for n in supply]
+                concerns.extend(await self.auditor.run(
+                    name, names, req.concerns,
+                    lambda k, p: emit(k, p, self.auditor.name)))
+
             if "siblings" in req.include and ls:
                 owner = next((l.name for l in reversed(ls) if l.kind.value == "company"), ls[-1].name)
                 q = f"List every brand owned by {owner}"
@@ -189,11 +200,12 @@ class Orchestrator:
             + [s.source for s in statutes] + [f.source for f in flags]
         sample = self.extractor.build(
             sample_id=sid, started_at=started, subject=subject, layers=layers,
-            supply=supply, statutes=statutes, flags=flags, siblings=siblings, gaps=gaps,
+            supply=supply, statutes=statutes, flags=flags, concerns=concerns,
+            siblings=siblings, gaps=gaps,
             queries_run=len(sources) + len(gaps),
             cache_hits=sum(1 for s in sources if s.cached),
             agents=["intake", "reader", "prospector", "surveyor", "statute",
-                    "recorder", "extractor"],
+                    "recorder", "auditor", "extractor"],
             models={
                 "planner": settings.model_planner if settings.has_openai else "static-ladder",
                 "vision": settings.model_vision if settings.has_openai else "unavailable",
@@ -204,5 +216,5 @@ class Orchestrator:
                 "facts": "cala/knowledge",
             },
         )
-        yield frame("score", sample.score.model_dump(), "extractor")
-        yield frame("done", sample.model_dump(), "extractor")
+        yield frame("score", sample.score.model_dump(mode="json"), "extractor")
+        yield frame("done", sample.model_dump(mode="json"), "extractor")

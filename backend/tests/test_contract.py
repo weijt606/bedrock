@@ -213,3 +213,16 @@ async def test_reader_stays_silent_without_pioneer():
 
 async def _noop():
     return None
+
+
+@pytest.mark.parametrize("name", [
+    "(Largest institutional holder — name truncated in data)",
+    "Name not available",
+    "Nominee account",
+    "[redacted]",
+])
+def test_registry_placeholders_are_not_entities(name):
+    """Scrapes leave placeholders where a name should be. Following one costs a
+    40-second Cala query and puts a company that does not exist into the chain —
+    observed live on a Nespresso dig."""
+    assert _heuristic(name, {})["kind"] == "not_an_entity"
