@@ -137,3 +137,79 @@ def test_bench_scoring_treats_a_longer_legal_name_as_a_hit():
         [{"text": "Henkell & Co. Sektkellerei KG"}, {"text": "Oetker family"}],
         ["Henkell & Co.", "Oetker family"])
     assert (tp, fn) == (2, 0)
+
+
+# --------------------------------------------------------------------------- #
+#  reader path, end to end, without the network
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.asyncio
+async def test_reader_turns_prose_into_layers():
+    """Everything between a GLiNER2 response and a CoreSample, proven offline.
+
+    When the account is unblocked the only remaining unknown is the wire format
+    itself; this pins the behaviour on either side of it.
+    """
+    from app.agents.reader import ReaderAgent
+    from app.clients.cala import CalaResult
+
+    prose = ("Freixenet S.A., the Spanish cava producer founded in 1928, is ultimately "
+             "owned by the Oetker family. Henkell & Co. Sektkellerei KG, based in "
+             "Wiesbaden, Germany, is the direct parent.")
+
+    class FakeCala:
+        async def search(self, q):
+            return CalaResult(query=q, endpoint="knowledge/search", content=prose,
+                              latency_s=0.85, cached=True, fact_ids=["fact-1"])
+
+    class FakePioneer:
+        async def extract(self, text, schema=None):
+            assert prose[:40] in text
+            return {"entities": [
+                {"text": "Henkell & Co. Sektkellerei KG", "label": "company", "score": 0.94},
+                {"text": "Oetker family", "label": "family", "score": 0.91},
+                {"text": "Wiesbaden, Germany", "label": "jurisdiction", "score": 0.88},
+                {"text": "1928", "label": "date", "score": 0.8},
+            ], "classifications": {"chain_position": "direct_parent"},
+                "latency_s": 0.09}
+
+    seen = []
+
+    async def emit(kind, payload, *a):
+        seen.append((kind, payload))
+
+    layers, gaps = await ReaderAgent(FakeCala(), FakePioneer()).run("Freixenet", emit)
+
+    assert not gaps
+    assert [l.name for l in layers] == ["Henkell & Co. Sektkellerei KG", "Oetker family"]
+    assert layers[1].kind.value == "family" and layers[1].terminal is True
+    assert layers[0].terminal is False
+    # jurisdictions and dates ride along as detail, never as their own layer
+    assert any("Wiesbaden" in d for d in layers[0].detail)
+    # the one rule: every layer still carries the Cala query that produced the prose
+    assert all(l.source.query.startswith("Who ultimately owns") for l in layers)
+    assert all(l.source.endpoint == "knowledge/search" for l in layers)
+    assert [k for k, _ in seen].count("layer") == 2
+
+
+@pytest.mark.asyncio
+async def test_reader_stays_silent_without_pioneer():
+    """No extractor configured must mean no contribution — never a guess."""
+    from app.agents.reader import ReaderAgent
+    from app.clients.cala import CalaResult
+
+    class FakeCala:
+        async def search(self, q):
+            return CalaResult(query=q, endpoint="knowledge/search",
+                              content="Some prose.", latency_s=0.5)
+
+    class NoPioneer:
+        async def extract(self, text, schema=None):
+            return None
+
+    layers, gaps = await ReaderAgent(FakeCala(), NoPioneer()).run("X", lambda *a: _noop())
+    assert layers == [] and gaps == []
+
+
+async def _noop():
+    return None
