@@ -56,6 +56,40 @@ curl -s -X POST localhost:8000/v1/samples:sync -H 'Content-Type: application/jso
 judging — a warm cache is the difference between a two-second demo and a
 ninety-second one.
 
+## Entire
+
+The repo is tracked by [Entire](https://entire.io), which captures the prompts,
+transcripts and decisions behind each change alongside the git history. Hooks
+live in `.claude/settings.json` and are guarded — if the CLI is not installed
+they exit quietly, so nothing breaks for anyone who skips this.
+
+```bash
+brew tap entireio/tap && brew trust entireio/tap
+brew install --cask entire
+entire login                       # interactive
+entire enable                      # already committed, but re-run after cloning
+```
+
+Twelve agent-invokable skills are installed in `.agents/skills/`, symlinked into
+`.claude/skills/`. Ask in plain language rather than looking up commands:
+
+| Ask | What it does |
+|---|---|
+| `search past work for the auditor` | finds prior sessions and checkpoints on a topic |
+| `explain app/agents/prospector.py` | the intent behind the code, not just the code |
+| `what happened at app/clients/pioneer.py:74` | why that line looks like that |
+| `review this branch before merging` | diff review with the intent context attached |
+| `hand off this session` | pick up where the other agent left off |
+
+`skills-lock.json` pins them. Update with
+`npx skills add https://github.com/entireio/skills --all`.
+
+Two of these earn their keep on this project specifically. **`what happened`** is
+useful because a lot of our design decisions are reactions to measured API
+behaviour — why `not_an_entity` exists, why the labour-rights probe is a dotted
+path — and that reasoning lives in the session, not in the diff. **`hand off`**
+matters because we are two people and one of us is usually asleep.
+
 ## Rhythm
 
 - Stand-up every ~4 hours: what landed, what is blocked, what changed in `API.md`
