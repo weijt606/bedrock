@@ -44,7 +44,13 @@ seconds and the whole experience is watching it happen.
   "audio_b64": "...",        // when kind=audio  (spoken product name)
   "mime": "image/jpeg",
   "depth": 4,                // 1..6 ownership hops
-  "include": ["ownership", "supply", "statute", "flags", "siblings"]
+  "include": ["ownership", "supply", "statute", "flags", "siblings", "concerns"],
+
+  // What the person actually cares about. Each one is checked against every
+  // entity the dig finds — the brand, every company up the chain, every known
+  // supplier — not just the name on the packet.
+  "concerns": ["child_labour", "forced_labour", "environment", "deforestation",
+               "labour_rights", "tax", "governance", "animal_welfare"]
 }
 ```
 
@@ -84,6 +90,7 @@ data: {"type":"layer","sample_id":"9f21…","seq":7,"at":32.6,"agent":"prospecto
 | `supply` | `SupplyNode` | A manufacturer landed |
 | `statute` | `Statute` | A regulation landed |
 | `flag` | `Flag` | A public record landed |
+| `concern` | `ConcernReport` | One stated concern resolved across the whole chain |
 | `gap` | `{query, reason, latency_s}` | **A question with no answer.** Render it, do not hide it — see below |
 | `siblings` | `{items, owner, latency_s}` | Other brands under the same owner |
 | `score` | `Score` | Running totals |
@@ -150,6 +157,37 @@ interesting thing the product finds. Render it as a result:
 
   "gaps": [ { "query": "Estrella Damm.barley_supplier", "reason": "no_rows", "latency_s": 29.0 } ],
 
+  // one report per concern the caller asked for
+  "concerns": [
+    { "concern": "child_labour",
+      "status": "found",                       // found | clear | unchecked
+      "entities_checked": ["Nespresso", "Nestlé", "Vanguard Capital Management LLC"],
+      "queries": ["Which companies have been accused of using child labour…", "…"],
+      "flags": [
+        { "kind": "report",
+          "title": "Nestlé appears on: Which companies have been accused of using child labour in their supply chains",
+          "concern": "child_labour",
+          "about": "Nestlé",                   // ← the PARENT, not the brand
+          "source": {…} }
+      ] }
+  ],
+
+  // narrative beats, in telling order, each weighted
+  "story": [
+    { "kind": "origin",   "headline": "Chupa Chups",
+      "detail": "An iconic lollipop brand founded in 1958 by Enric Bernat…",
+      "weight": 0.30, "entities": ["Chupa Chups"], "at_step": 0 },
+    { "kind": "border",   "headline": "At step 2 the trail leaves Spain for Luxembourg.",
+      "weight": 0.60, "entities": ["Perfetti Van Melle", "C+F Confectionery and Foods S.A."],
+      "at_step": 1, "source": {…} },
+    { "kind": "terminus", "headline": "It ends at an address: 10, Rue Henri M. Schnadt, L-2530 Luxembourg.",
+      "detail": "3 steps from the thing in your hand.", "weight": 0.90, "source": {…} },
+    { "kind": "concern",  "headline": "Nestlé — 1 step above the label — has a child labour record.",
+      "weight": 1.00, "entities": ["Nestlé"], "at_step": 1, "source": {…} },
+    { "kind": "silence",  "headline": "And then it goes quiet.",
+      "detail": "Estrella Damm.barley_supplier → rows = 0", "weight": 0.70 }
+  ],
+
   "guesses": [                       // ask these BEFORE revealing the layers
     { "id": "ends_in_country", "question": "Which country does the ownership end in?",
       "options": ["Spain","Netherlands","Luxembourg","Germany","Italy","United States","United Kingdom"],
@@ -181,6 +219,30 @@ interesting thing the product finds. Render it as a result:
   }
 }
 ```
+
+### `status: "clear"` is not a clean bill of health
+
+`clear` means **we asked and the public record is empty**. For a small private
+supplier that is the normal state of affairs, not an endorsement. Never render it
+as a green tick meaning "ethical" — say what it is: nothing filed.
+
+`ConcernReport.queries` carries exactly what was asked, so the UI can show it.
+
+### `story` — the beats, and what to do with them
+
+`headline` is a sentence with values dropped into it. **No language model wrote
+any of it**, which is why it is safe to render verbatim next to a real company's
+name.
+
+`weight` (0–1) is derived from the facts and decides emphasis. Sort by it and
+take three and you have the short version; render in array order and you have the
+long one. The array is already in telling order:
+
+`origin → handover/border → terminus → scale → convergence → concern → silence`
+
+The heaviest beat is usually `concern` with an `about` that is **not** the brand
+— a record filed against a company four steps above the label is the thing a
+shopper cannot reach on their own, and it is why the ownership dig exists.
 
 ### `answer` is withheld during the dig
 

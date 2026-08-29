@@ -62,7 +62,59 @@ Detect it by comparing terminal layer names across stored samples:
 const terminal = s => s.layers.filter(l => l.terminal).map(l => l.name);
 ```
 
-## 5. Scoring
+## 5. The story — from `story[]`
+
+`CoreSample.story` is a list of `Beat`s, already in telling order, each with a
+`weight` from 0 to 1 and the `source` behind it.
+
+| `kind` | Reads as |
+|---|---|
+| `origin` | where and when the thing started |
+| `handover` | it answers to somebody else now |
+| `border` | the trail left the country it came from |
+| `terminus` | it ends here — an address, or a person |
+| `scale` | "this object has been to 4 countries" |
+| `convergence` | "32 brands end in the same place" |
+| `concern` | a record on something the player said they care about |
+| `silence` | we asked, and nobody has written it down |
+
+Three ways to use it, cheapest first:
+
+1. **Render in array order.** It is already a story.
+2. **Sort by `weight`, take three.** The short version, for a results card.
+3. **Sequence against the dig.** `at_step` says which layer a beat belongs to, so
+   a beat can land on screen at the moment its layer does.
+
+`headline` is templated from data — **no model wrote it** — so it is safe to
+render verbatim beside a real company's name. `detail` is the second line.
+
+The heaviest beat is normally a `concern` whose `about` is *not* the brand. That
+is the payoff of the whole product: you asked about child labour, and the record
+is filed against the company one step above the thing you picked up.
+
+## 6. Concerns — from `concerns[]`
+
+Ask the player what they care about **before** the dig, pass it as
+`concerns: [...]`, and every entity in the chain gets checked, not just the brand.
+
+That turns the guess mechanic into something sharper than a country quiz:
+
+> *You said you care about child labour. Which of these five companies do you
+> think has a record?*
+
+Then reveal. It is usually not the one on the packet.
+
+**Three rules for rendering this section.** They are not stylistic.
+
+- **Never show a score, a grade or a traffic light.** Bedrock reports what is
+  filed. "X appears on the UFLPA Entity List" is a fact with a source; "X is
+  unethical" is an opinion and is defamatory if wrong.
+- **`clear` is not "clean".** It means nothing has been filed where Cala can see
+  it. Say that.
+- **Always keep `about` visible.** A record against the parent must never look
+  like a record against the brand.
+
+## 7. Scoring
 
 Deliberately not on the server — it belongs to the player, not the sample.
 Suggested: +1 per correct guess, and a running "wrong" count that is the real

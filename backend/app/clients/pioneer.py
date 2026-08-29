@@ -95,7 +95,16 @@ _CORPORATE_WORD = re.compile(
     r"group|groep|gruppo|grupo|sektkellerei|kellerei|verwaltung|konzern)\b", re.I)
 _PERSON = re.compile(r"^[A-ZÁÉÍÓÚÑÜ][\w'’\-]+(?:\s+[A-ZÁÉÍÓÚÑÜ][\w'’\-]+){1,3}$")
 _NOT_ENTITY = re.compile(
-    r"^(free float|floating stock|treasury (shares|stock)|other shareholders?|public (shareholders?|float)|minority (shareholders?|interests?)|various|not disclosed|undisclosed|n/?a|unknown)\b", re.I)
+    r"^\s*(\(|\[)"                       # a parenthetical is an annotation, not a name
+    r"|^(free float|floating stock|treasury (shares|stock)|other shareholders?"
+    r"|public (shareholders?|float)|minority (shareholders?|interests?)|various"
+    r"|not disclosed|undisclosed|n/?a|unknown|none)\b", re.I)
+# Registries and scrapes leave behind placeholders where a name should be. They
+# read like entities and they are not; following one costs a 40-second Cala
+# query and puts a non-existent company in the middle of the chain.
+_PLACEHOLDER = re.compile(
+    r"\b(truncated|not available|unavailable|name withheld|redacted|see note"
+    r"|largest (institutional )?holder|institutional holders?|nominee)\b", re.I)
 
 
 def _heuristic(name: str, row: dict[str, Any]) -> dict[str, Any]:
@@ -108,7 +117,7 @@ def _heuristic(name: str, row: dict[str, Any]) -> dict[str, Any]:
     n = (name or "").strip()
     has_person_signal = bool(row.get("role") or row.get("ownership_percent"))
 
-    if _NOT_ENTITY.match(n):
+    if _NOT_ENTITY.match(n) or _PLACEHOLDER.search(n):
         kind, conf, terminal = "not_an_entity", 0.9, False
     elif _FAMILY.search(n):
         kind, conf, terminal = "family", 0.86, True

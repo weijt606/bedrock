@@ -36,9 +36,15 @@ class SampleRequest(BaseModel):
     audio_b64: str | None = Field(None, description="Base64 audio payload, when kind=audio")
     mime: str | None = Field(None, description="MIME type for image/audio payloads")
     depth: int = Field(4, ge=1, le=6, description="How many ownership hops to attempt")
-    include: list[Literal["ownership", "supply", "statute", "flags", "siblings"]] = Field(
+    include: list[Literal["ownership", "supply", "statute", "flags", "siblings",
+                          "concerns"]] = Field(
         default_factory=lambda: ["ownership", "supply", "statute", "flags", "siblings"]
     )
+    concerns: list[Concern] = Field(
+        default_factory=list,
+        description="What the person actually cares about. Each one is looked up "
+                    "against every entity in the ownership chain and every known "
+                    "supplier — not just the brand on the front of the packet.")
 
     model_config = {
         "json_schema_extra": {
@@ -118,6 +124,24 @@ class Statute(BaseModel):
     source: Source
 
 
+class Concern(str, Enum):
+    """What a person might actually want to know before buying something.
+
+    These are the questions Bedrock will go and look up. They are *not* scores:
+    Bedrock reports what is on the public record for each one and leaves the
+    judgement where it belongs.
+    """
+
+    child_labour = "child_labour"
+    forced_labour = "forced_labour"
+    environment = "environment"
+    deforestation = "deforestation"
+    labour_rights = "labour_rights"
+    tax = "tax"
+    governance = "governance"
+    animal_welfare = "animal_welfare"
+
+
 class Flag(BaseModel):
     """A matter of public record — litigation, a sanctions listing, a regulator action.
 
@@ -126,12 +150,41 @@ class Flag(BaseModel):
     opinion of the company.
     """
 
-    kind: Literal["litigation", "sanctions", "regulatory", "recall"]
+    kind: Literal["litigation", "sanctions", "regulatory", "recall", "report"]
     title: str
     parties: str | None = None
     summary: str | None = None
     severity: Literal["record", "pending", "decided"] = "record"
+    concern: Concern | None = Field(
+        None, description="Which of the user's stated concerns this record speaks to")
+    about: str | None = Field(
+        None, description="Which entity in the chain this is filed against — the brand, "
+                          "a parent, or a supplier. Frequently not the brand.")
     source: Source
+
+
+class ConcernReport(BaseModel):
+    """What we found when we went looking for one concern, across the whole chain.
+
+    `status` has three values on purpose, and the middle one is the one that gets
+    misread:
+
+      found      there is a filed record — see `flags`
+      clear      **we asked and the public record is empty.** That is not a clean
+                 bill of health. It means nobody has filed anything Cala can see,
+                 which for a small private supplier is the normal state of affairs.
+      unchecked  we ran out of budget before asking
+
+    A UI must never render `clear` as a green tick meaning "ethical".
+    """
+
+    concern: Concern
+    status: Literal["found", "clear", "unchecked"] = "unchecked"
+    entities_checked: list[str] = Field(
+        default_factory=list,
+        description="Every entity in the chain we asked about, not just the brand")
+    flags: list[Flag] = Field(default_factory=list)
+    queries: list[str] = Field(default_factory=list, description="Exactly what we asked")
 
 
 class Gap(BaseModel):
@@ -150,6 +203,42 @@ class Gap(BaseModel):
 # --------------------------------------------------------------------------- #
 #  game surface
 # --------------------------------------------------------------------------- #
+
+
+class BeatKind(str, Enum):
+    origin = "origin"            # where and when the thing started
+    handover = "handover"        # it changed hands
+    border = "border"            # ownership crossed a border
+    terminus = "terminus"        # the chain stopped, here
+    convergence = "convergence"  # other things end in the same place
+    concern = "concern"          # a record on something the person said they care about
+    silence = "silence"          # we asked and nobody has written it down
+    scale = "scale"              # a number worth feeling
+
+
+class Beat(BaseModel):
+    """One narrative beat, assembled from facts.
+
+    The game layer needs a story, and a story needs an order and a shape. What it
+    must **not** need is a language model writing prose about a real company — so
+    beats are templated from values Cala returned, each one carrying the `source`
+    behind it. Nothing here is generated; `headline` is a sentence with the
+    numbers dropped in.
+
+    `weight` is how much of the screen this deserves, derived from the facts
+    themselves: a record filed against a company four steps above the label
+    outranks the year the brand was founded. Sort by it, take the top three, and
+    you have a story.
+    """
+
+    kind: BeatKind
+    headline: str = Field(description="One line, templated from data. Safe to render as-is.")
+    detail: str | None = Field(None, description="A second line, when there is one")
+    weight: float = Field(0.0, ge=0.0, le=1.0)
+    entities: list[str] = Field(default_factory=list,
+                                description="Who this beat is about — highlight these")
+    at_step: int | None = Field(None, description="Which layer of the dig it belongs to")
+    source: Source | None = None
 
 
 class GuessPrompt(BaseModel):
@@ -203,10 +292,18 @@ class CoreSample(BaseModel):
     supply: list[SupplyNode] = Field(default_factory=list)
     statutes: list[Statute] = Field(default_factory=list)
     flags: list[Flag] = Field(default_factory=list)
+    concerns: list[ConcernReport] = Field(
+        default_factory=list,
+        description="One report per concern the caller asked about")
     siblings: list[str] = Field(
         default_factory=list, description="Other brands under the same ultimate owner"
     )
     gaps: list[Gap] = Field(default_factory=list)
+    story: list[Beat] = Field(
+        default_factory=list,
+        description="Narrative beats in telling order, each with a weight. "
+                    "Everything the game layer needs to tell this product's story "
+                    "without inventing a word of it.")
     guesses: list[GuessPrompt] = Field(default_factory=list)
     score: Score = Field(default_factory=Score)
     meta: Meta
@@ -226,6 +323,7 @@ class EventType(str, Enum):
     supply = "supply"              # a supply node landed
     statute = "statute"            # a regulation landed
     flag = "flag"                  # a public record landed
+    concern = "concern"            # one concern resolved across the chain
     gap = "gap"                    # a query came back empty
     siblings = "siblings"          # sibling brands landed
     score = "score"                # running score update
