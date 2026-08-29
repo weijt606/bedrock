@@ -82,9 +82,17 @@
           </div>
         </div>
 
-        <!-- The core sample. Six strata, each one a question the dig answers. -->
+        <!-- The core sample. The plinth never changes — it is what everything is
+             made of. The product on top is whatever the person just named. -->
         <div class="core" aria-hidden="true">
-          <img class="core__stack" src="assets/Coca-cola.png" alt="">
+          <!-- Until somebody names something, the hero is the photograph as shot:
+               the can already standing on the strata. The moment there is a real
+               subject it cross-fades to the plinth with that product on top. -->
+          <img class="core__default" id="core-default" src="assets/hero-default.png" alt="">
+          <div class="core__product" id="core-product">
+            <img id="core-product-img" alt="">
+          </div>
+          <img class="core__plinth" id="core-plinth" src="assets/plinth.png" alt="">
           <ul class="core__legend">
             <li style="--y:9%"><img src="assets/circle-dot-svgrepo-com.svg" alt=""><b>What you see</b><span>The product</span></li>
             <li style="--y:26%"><img src="assets/flask-2-svgrepo-com.svg" alt=""><b>Ingredients</b><span>What's inside</span></li>

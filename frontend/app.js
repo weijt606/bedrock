@@ -659,3 +659,100 @@ document.querySelectorAll('.popular button[data-suggest]').forEach((chip) => {
     form.requestSubmit();
   });
 });
+
+// ---------------------------------------------------------------------------
+//  the product on the plinth
+// ---------------------------------------------------------------------------
+//
+// The strata never change — they are what everything is made of. What stands on
+// them is whatever the person just named, so the hero is a picture of *their*
+// thing rather than a stock can.
+//
+// Typed a name  -> /v1/packshot finds an official photograph (Open Food Facts
+//                  first, then Wikipedia) and returns it with its background
+//                  removed and its attribution.
+// Took a photo  -> /v1/cutout removes the background from theirs.
+//
+// Both are cut out rather than generated. BiRefNet decides which of a
+// photographer's pixels are the subject; it does not invent one. A generated
+// product image, in a piece whose whole argument is that these facts are
+// checkable, would undo the argument.
+
+const coreEl = document.querySelector('.core');
+const coreProduct = document.querySelector('#core-product');
+const coreProductImg = document.querySelector('#core-product-img');
+let productToken = 0;
+
+// When the person supplies a photograph, that photograph *is* the subject. The
+// name we read off it can be wrong — a label is small, angled and often not in
+// English — but the object in their hand is not in question. So a photograph
+// locks the hero: nothing found by name afterwards is allowed to replace it.
+let productIsFromPhoto = false;
+
+function swapProduct(src, credit) {
+  if (!coreProduct || !coreProductImg || !src) return;
+  const token = ++productToken;
+  const next = new Image();
+  next.onload = () => {
+    if (token !== productToken) return;          // a newer subject already won
+    coreEl?.classList.add('is-live');            // leave the as-shot photograph
+    coreProduct.classList.add('is-swapping');
+    window.setTimeout(() => {
+      coreProductImg.src = src;
+      coreProductImg.alt = credit || '';
+      coreProduct.classList.remove('is-swapping');
+    }, 240);
+  };
+  next.src = src;
+}
+
+async function showProductFor(name) {
+  if (!name?.trim() || productIsFromPhoto) return;
+  try {
+    const r = await fetch(`${API_URL}/v1/packshot?name=${encodeURIComponent(name.trim())}`);
+    if (!r.ok) return;                            // no picture is fine; keep the last
+    const shot = await r.json();
+    swapProduct(shot.cutout || shot.url, `${shot.title} — ${shot.publisher}`);
+    showJson('Packshot', shot);
+  } catch { /* the hero is decoration; never let it break a dig */ }
+}
+
+async function showProductForPhoto(file) {
+  if (!file) return;
+  productIsFromPhoto = true;
+  helper.textContent = 'Cutting the product out…';
+  try {
+    const r = await fetch(`${API_URL}/v1/cutout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_b64: await toBase64(file), mime: file.type }),
+    });
+    if (!r.ok) throw new Error('cutout failed');
+    const { url } = await r.json();
+    // Only now does it go on the plinth. Placing the raw photograph first and
+    // replacing it a moment later showed the person their kitchen table standing
+    // on a rock, which is the opposite of the point.
+    swapProduct(url, 'Your photograph');
+    helper.textContent = '';
+  } catch {
+    // Without a cut-out it would be a rectangle sitting on the strata, so the
+    // hero keeps whatever it had and the photograph is still used for the dig.
+    helper.textContent = 'Could not separate the product from its background.';
+  }
+}
+
+document.addEventListener('bedrock:frame', (event) => {
+  const { type, payload } = event.detail;
+  if (type === 'accepted' && !productIsFromPhoto) return;
+  // The resolved name beats what was typed: "cocacola" becomes "Coca-Cola".
+  // It never beats a photograph.
+  if (type === 'subject') showProductFor(payload.resolved_name);
+});
+
+photoInput?.addEventListener('change', () => showProductForPhoto(photoInput.files?.[0]));
+removePhoto?.addEventListener('click', () => { productIsFromPhoto = false; });
+subject?.addEventListener('input', () => { if (!photoInput?.files?.length) productIsFromPhoto = false; });
+
+document.querySelectorAll('.popular button[data-suggest]').forEach((chip) => {
+  chip.addEventListener('pointerenter', () => showProductFor(chip.dataset.suggest));
+});
