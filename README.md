@@ -32,7 +32,23 @@ So the roles are split, and the split is enforced by the type system:
 | **Cala** | state facts, with sources | — |
 | **OpenAI** | plan which questions to ask, reshape returned rows, read a brand name off a photograph | assert anything about a company |
 | **Pioneer** | classify and score rows Cala returned, on a fine-tuned encoder | add a row |
-| **fal** | transcribe speech to text | anything else |
+| **fal** | transcribe speech, cut a product out of its background, render the motion behind a card | depict anything a card then treats as evidence |
+| **Aikido** | scan every dependency and every diff, and open a PR when it finds something | run at request time — it has never seen a response |
+| **Entire** | record the prompts, transcripts and decisions behind each change, next to the git history | enter the request path at all |
+
+The last two rows are not filler, and they are not in the request path either —
+which is exactly why they belong in a table about who is allowed to state a fact.
+A supply-chain audit tool that shipped a compromised dependency would be making
+its reader's argument for them; the reason Aikido can never contaminate a fact is
+that it has never seen one.
+
+Entire earns its row for a related reason. An unusual amount of this codebase is
+a reaction to *measured API behaviour* rather than to anything a diff can show —
+why the auditor asks `Ferrero.labour_disputes` and not "what has Ferrero been
+accused of", why a query goes to the parent and not the brand. The diff shows the
+line; the transcript shows the twelve queries that made it the only line that
+works. Three Aikido findings and the full write-up are in
+[`docs/SIDE_TRACKS.md`](docs/SIDE_TRACKS.md).
 
 Every user-visible claim in the response — `Layer`, `SupplyNode`, `Statute`,
 `Flag` — carries a **required** `source: Source` field naming the exact Cala
