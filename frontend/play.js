@@ -277,7 +277,7 @@
       const card = cards[i];
       timers.splice(0).forEach(window.clearTimeout);
 
-      stage.innerHTML = '<section class="pc-card" data-kind="' + card.kind + '"'
+      stage.innerHTML = '<section class="pc-card" data-kind="' + esc(card.kind) + '"'
         + (back ? ' data-back="1"' : '') + '>'
         + (card.kind === 'verdict' ? verdictHtml() : card.html) + '</section>';
       pips.forEach((p, k) => p.classList.toggle('on', k <= i));
