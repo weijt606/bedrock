@@ -154,12 +154,18 @@ def build_story(subject: Subject, layers: list[Layer], score: Score,
         ))
 
     # --- each time it changed hands ---------------------------------------- #
+    #
+    # Only from layers the ladder confirmed. A provisional layer is a name the
+    # extractor lifted out of a paragraph, and the order names appear in is not
+    # an order of ownership - "Nestlé S.A. answers to SIX Swiss Exchange" is a
+    # sentence this template will happily build out of a listing venue. A beat
+    # asserts a relationship, so it may only be built from a confirmed one.
     prev = name
-    for layer in layers:
+    for layer in [l for l in layers if not l.provisional]:
         crossed = bool(origin and layer.country and layer.country != origin)
         beats.append(Beat(
             kind=BeatKind.border if crossed else BeatKind.handover,
-            headline=(f"{prev} answers to {layer.name}."
+            headline=(_handover(prev, layer)
                       if not crossed else
                       f"At step {layer.index + 1} the trail leaves "
                       f"{origin_name} for {COUNTRY_NAMES.get(layer.country or '', layer.country)}."),
@@ -173,8 +179,9 @@ def build_story(subject: Subject, layers: list[Layer], score: Score,
         prev = layer.name
 
     # --- where it stopped --------------------------------------------------- #
-    if layers:
-        last = layers[-1]
+    confirmed = [l for l in layers if not l.provisional]
+    if confirmed:
+        last = confirmed[-1]
         if last.address:
             head = f"It ends at an address: {last.address}."
         elif last.kind.value in ("person", "family"):
@@ -226,8 +233,9 @@ def build_story(subject: Subject, layers: list[Layer], score: Score,
                 indirect = about.lower() != name.lower()
                 beats.append(Beat(
                     kind=BeatKind.concern,
-                    headline=(f"{about} — {step} steps above the label — has a "
-                              f"{label} record." if indirect and step else
+                    headline=(f"{about} — {step} step{'' if step == 1 else 's'} above "
+                              f"the label — has a {label} record."
+                              if indirect and step else
                               f"{about} has a {label} record."),
                     detail=flag.title,
                     weight=1.0 if indirect else 0.9,
@@ -257,6 +265,22 @@ def build_story(subject: Subject, layers: list[Layer], score: Score,
         ))
 
     return sorted(beats, key=lambda b: (_ORDER[b.kind], -b.weight))
+
+
+def _handover(prev: str, layer: Layer) -> str:
+    """Say exactly what the row said.
+
+    "answers to" is right for a parent and wrong for a passive index fund holding
+    two per cent, and a beat that overstates a relationship is as damaging as one
+    that invents it. So the verb comes from the data: a stated relationship, then
+    a stated stake, then the neutral fact that a name is on the register.
+    """
+    rel = (layer.relationship or "").strip().lower()
+    if any(w in rel for w in ("parent", "owner", "controll", "majority")):
+        return f"{prev} answers to {layer.name}."
+    if layer.stake_percent is not None:
+        return f"{layer.name} holds {layer.stake_percent:g}% of {prev}."
+    return f"{layer.name} appears on the share register of {prev}."
 
 
 # Telling order. Weight decides emphasis; this decides sequence.

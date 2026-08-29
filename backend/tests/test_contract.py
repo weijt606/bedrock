@@ -365,3 +365,66 @@ def test_search_citations_resolve_to_documents_a_reader_can_open():
     assert res.documents == ["https://www.wikiwand.com/en/articles/X",
                              "https://search.gleif.org/#/record/8755"]
     assert "b0595ee6" in res.fact_ids
+
+
+def test_a_beat_never_asserts_a_relationship_the_ladder_did_not_confirm():
+    """Observed live on Nespresso: the reader lifted "SIX Swiss Exchange" out of
+    the prose — the venue Nestlé lists on — and the story template turned mention
+    order into "Nestlé S.A. answers to SIX Swiss Exchange". A beat asserts a
+    relationship, so it may only be built from a confirmed layer."""
+    from app.agents.extractor import build_story
+    from app.schemas import Score, Source, Subject
+
+    src = Source(query="q", latency_s=0.5)
+    sketch = Layer(index=0, name="SIX Swiss Exchange", kind="company",
+                   provisional=True, source=src)
+    real = Layer(index=0, name="Nestlé S.A.", kind="company", source=src)
+    subject = Subject(raw_input="Nespresso", resolved_name="Nespresso")
+
+    beats = build_story(subject, [sketch, real], Score(hops_to_human=1), [], [], [])
+    said = " ".join(b.headline for b in beats)
+    assert "SIX Swiss Exchange" not in said
+    assert "Nestlé S.A." in said
+
+
+def test_handover_wording_follows_the_data():
+    """"answers to" is right for a parent and wrong for a passive index fund
+    holding two per cent. Overstating a relationship damages the piece as much as
+    inventing one, so the verb comes from the row."""
+    from app.agents.extractor import _handover
+    from app.schemas import Source
+    src = Source(query="q", latency_s=0.5)
+    parent = Layer(index=0, name="Perfetti Van Melle", kind="company",
+                   relationship="direct parent", source=src)
+    holder = Layer(index=0, name="Vanguard Total International Stock Index Fund",
+                   kind="fund", stake_percent=2.1, source=src)
+    listed = Layer(index=0, name="Some Nominee", kind="company", source=src)
+    assert _handover("Chupa Chups", parent) == "Chupa Chups answers to Perfetti Van Melle."
+    assert "holds 2.1% of Nestlé" in _handover("Nestlé", holder)
+    assert "appears on the share register" in _handover("Nestlé", listed)
+
+
+# --------------------------------------------------------------------------- #
+#  voice input
+# --------------------------------------------------------------------------- #
+
+def test_audio_reader_takes_a_name_and_refuses_a_narration():
+    """The model answers a prompt rather than transcribing, so it can return a
+    sentence about the recording. A name is short; anything long is the model
+    narrating and is not a product name."""
+    from app.clients.falstt import FalClient
+    read = FalClient._read
+    assert read({"output": "Nespresso"}) == "Nespresso"
+    assert read({"output": '  "Chupa Chups." '}) == "Chupa Chups"
+    assert read({"output": "UNKNOWN"}) is None
+    assert read({"text": "Estrella Damm"}) == "Estrella Damm"          # whisper shape
+    assert read({"output": "The speaker appears to be naming " * 5}) is None
+
+
+def test_only_containers_the_model_accepts_are_sent():
+    """Measured: the model reads the extension off the URL and returns 422 for
+    anything but .wav/.mp3 — including the audio/webm a browser produces by
+    default, and including a data URI of valid wav bytes."""
+    from app.clients.falstt import _EXT
+    assert _EXT["audio/wav"] == "wav" and _EXT["audio/mpeg"] == "mp3"
+    assert "audio/webm" not in _EXT

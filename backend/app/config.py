@@ -64,7 +64,11 @@ class Settings:
 
     # --- fal: speech to text, and background removal for the shelf --------
     fal_key: str = os.environ.get("FAL_KEY", "")
-    fal_stt_model: str = os.environ.get("FAL_STT_MODEL", "fal-ai/whisper")
+    # An audio-understanding model, not a transcriber: it is asked for the one
+    # brand name in the clip rather than for every word. Point it back at
+    # fal-ai/whisper and the client still reads the response.
+    fal_stt_model: str = os.environ.get(
+        "FAL_STT_MODEL", "nvidia/nemotron-3-nano-omni/audio")
 
     # --- speed budget ------------------------------------------------------
     # Cala is 16-75s cold and ~0.5s warm. Everything here is tuned around that:

@@ -87,6 +87,7 @@ class ReaderAgent:
                 continue
             seen.add(key)
             detail = [d for d in (
+                "named in the same answer, ownership not established",
                 f"jurisdictions named in the same answer: {', '.join(jurisdictions[:4])}"
                 if jurisdictions else "",
                 f"stakes named: {', '.join(stakes[:4])}" if stakes else "",
@@ -97,7 +98,12 @@ class ReaderAgent:
                 index=len(layers),
                 name=e["text"],
                 kind=kind,
-                relationship=got.get("classifications", {}).get("chain_position"),
+                # No relationship. The extractor found a *mention*, and the order
+                # of mentions in a paragraph is not an order of ownership: a dig
+                # for Nespresso produced "Nestlé S.A. answers to SIX Swiss
+                # Exchange", which is the exchange it lists on. Asserting a link
+                # we did not extract is the one thing this system must not do.
+                relationship=None,
                 detail=detail,
                 confidence=round(float(e.get("score") or 0.0), 2),
                 terminal=kind in _TERMINAL,
