@@ -1,4 +1,8 @@
-"""OpenAI — the reasoning engine.
+"""The reasoning engine.
+
+Reached either through OpenAI directly or through Pioneer's OpenAI-compatible
+gateway, whichever key is present — see `Settings.llm_provider`. The calls are
+identical; only the base URL and the auth header differ.
 
 Hard boundary, enforced by review and by the schema: this client is allowed to
 *plan*, *parse* and *read a label*. It is never allowed to assert a fact about a
@@ -37,16 +41,16 @@ class LLMClient:
 
     async def _chat(self, messages: list[dict[str, Any]], *, model: str,
                     timeout: float, json_mode: bool = True) -> dict[str, Any] | None:
-        if not settings.has_openai:
+        if not settings.has_llm:
             return None
         body: dict[str, Any] = {"model": model, "messages": messages, "temperature": 0}
         if json_mode:
             body["response_format"] = {"type": "json_object"}
         try:
             r = await self._client.post(
-                f"{settings.openai_base}/chat/completions",
+                f"{settings.llm_base}/chat/completions",
                 json=body,
-                headers={"Authorization": f"Bearer {settings.openai_key}"},
+                headers=settings.llm_headers,
                 timeout=timeout,
             )
             r.raise_for_status()
@@ -70,7 +74,7 @@ class LLMClient:
         )
         return await self._chat(
             [{"role": "system", "content": _PLANNER_SYSTEM}, {"role": "user", "content": prompt}],
-            model=settings.model_planner,
+            model=settings.planner_model,
             timeout=settings.planner_timeout_s,
         )
 
@@ -88,20 +92,20 @@ class LLMClient:
         )
         return await self._chat(
             [{"role": "system", "content": _PLANNER_SYSTEM}, {"role": "user", "content": prompt}],
-            model=settings.model_planner,
+            model=settings.planner_model,
             timeout=settings.planner_timeout_s,
         )
 
     # ----------------------------------------------------------------- read
     async def read_label(self, image_b64: str, mime: str = "image/jpeg") -> str | None:
         """Vision does exactly one job: transcribe the brand name printed on a package."""
-        if not settings.has_openai:
+        if not settings.has_llm:
             return None
         try:
             r = await self._client.post(
-                f"{settings.openai_base}/chat/completions",
+                f"{settings.llm_base}/chat/completions",
                 json={
-                    "model": settings.model_vision,
+                    "model": settings.vision_model,
                     "max_tokens": 40,
                     "temperature": 0,
                     "messages": [{"role": "user", "content": [
@@ -112,7 +116,7 @@ class LLMClient:
                          "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
                     ]}],
                 },
-                headers={"Authorization": f"Bearer {settings.openai_key}"},
+                headers=settings.llm_headers,
                 timeout=30.0,
             )
             r.raise_for_status()

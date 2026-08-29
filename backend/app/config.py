@@ -38,11 +38,15 @@ class Settings:
     cala_key: str = os.environ.get("CALA_API_KEY", "")
     cala_base: str = os.environ.get("CALA_BASE", "https://api.cala.ai")
 
-    # --- OpenAI: the reasoning engine (plans, parses, never asserts) -------
+    # --- the reasoning engine (plans, parses, reads labels; never asserts) -
+    # Two ways to reach a frontier model. OpenAI directly if a key is set;
+    # otherwise Pioneer, whose gateway is OpenAI-compatible and serves the same
+    # models on the key we already have for the specialists. That means one key
+    # is enough to light up vision and the planner, instead of two.
     openai_key: str = os.environ.get("OPENAI_API_KEY", "")
     openai_base: str = os.environ.get("OPENAI_BASE", "https://api.openai.com/v1")
-    model_planner: str = os.environ.get("MODEL_PLANNER", "gpt-4o-mini")
-    model_vision: str = os.environ.get("MODEL_VISION", "gpt-4o-mini")
+    model_planner: str = os.environ.get("MODEL_PLANNER", "")
+    model_vision: str = os.environ.get("MODEL_VISION", "")
 
     # --- Pioneer: the fine-tuned specialist for classification/extraction --
     pioneer_key: str = os.environ.get("PIONEER_API_KEY", "")
@@ -86,6 +90,43 @@ class Settings:
     @property
     def has_openai(self) -> bool:
         return bool(self.openai_key)
+
+    # ---- resolved reasoning provider -------------------------------------
+    @property
+    def llm_provider(self) -> str:
+        """'openai' | 'pioneer' | 'none'. OpenAI wins when both are configured."""
+        if self.openai_key:
+            return "openai"
+        if self.pioneer_key:
+            return "pioneer"
+        return "none"
+
+    @property
+    def has_llm(self) -> bool:
+        return self.llm_provider != "none"
+
+    @property
+    def llm_base(self) -> str:
+        return self.openai_base if self.llm_provider == "openai" else f"{self.pioneer_base}/v1"
+
+    @property
+    def llm_headers(self) -> dict[str, str]:
+        """Pioneer authenticates with X-API-Key, OpenAI with a bearer token."""
+        if self.llm_provider == "openai":
+            return {"Authorization": f"Bearer {self.openai_key}"}
+        return {"X-API-Key": self.pioneer_key}
+
+    @property
+    def planner_model(self) -> str:
+        if self.model_planner:
+            return self.model_planner
+        return "gpt-4o-mini" if self.llm_provider == "openai" else "gpt-5.6-sol"
+
+    @property
+    def vision_model(self) -> str:
+        if self.model_vision:
+            return self.model_vision
+        return "gpt-4o-mini" if self.llm_provider == "openai" else "gpt-5.6-sol"
 
     @property
     def has_pioneer(self) -> bool:

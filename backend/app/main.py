@@ -24,8 +24,6 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import cache
-from .clients.falstt import FalClient
-from .clients.llm import LLMClient
 from .config import settings
 from .orchestrator import Orchestrator
 from .schemas import CoreSample, ImageDescriptionRequest, SampleRequest, StreamEvent, TranscriptionRequest
@@ -52,8 +50,6 @@ app.add_middleware(
 )
 
 _orc = Orchestrator()
-_fal = FalClient()
-_vision = LLMClient()
 _samples: dict[str, CoreSample] = {}
 _streams: dict[str, asyncio.Queue] = {}
 _pending: dict[str, SampleRequest] = {}
@@ -62,8 +58,6 @@ _pending: dict[str, SampleRequest] = {}
 @app.on_event("shutdown")
 async def _shutdown() -> None:
     await _orc.aclose()
-    await _fal.aclose()
-    await _vision.aclose()
 
 
 @app.get("/v1/health", tags=["meta"])
@@ -76,6 +70,14 @@ async def health() -> dict[str, Any]:
             "openai": settings.has_openai,
             "pioneer": settings.has_pioneer,
             "fal": settings.has_fal,
+            # what the front end actually needs to know before offering a button
+            "vision": settings.has_llm,
+            "speech": settings.has_fal,
+        },
+        "reasoning": {
+            "provider": settings.llm_provider,
+            "planner": settings.planner_model if settings.has_llm else None,
+            "vision": settings.vision_model if settings.has_llm else None,
         },
         "assay": {
             "backend": _orc.pioneer.backend,
@@ -107,7 +109,7 @@ async def transcribe_audio(req: TranscriptionRequest) -> dict[str, str]:
     """Turn a voice note into text with fal before it becomes a sample."""
     if not settings.has_fal:
         raise HTTPException(503, "FAL_KEY is not configured")
-    text = await _fal.transcribe(req.audio_b64, req.mime)
+    text = await _orc.fal.transcribe(req.audio_b64, req.mime)
     if not text:
         raise HTTPException(422, "audio could not be transcribed")
     return {"text": text}
@@ -116,9 +118,10 @@ async def transcribe_audio(req: TranscriptionRequest) -> dict[str, str]:
 @app.post("/v1/describe-image", tags=["input"])
 async def describe_image(req: ImageDescriptionRequest) -> dict[str, str]:
     """Read a product label with OpenAI vision before the user starts a dig."""
-    if not settings.has_openai:
-        raise HTTPException(503, "OPENAI_API_KEY is not configured")
-    text = await _vision.read_label(req.image_b64, req.mime)
+    if not settings.has_llm:
+        raise HTTPException(
+            503, "No reasoning provider configured — set OPENAI_API_KEY or PIONEER_API_KEY")
+    text = await _orc.llm.read_label(req.image_b64, req.mime)
     if not text:
         raise HTTPException(422, "image could not be read")
     return {"text": text}
