@@ -398,3 +398,71 @@ body.is-loading .skeleton-screen { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ---------------------------------------------------------------- the deal */
+/* One finding per card. A list is read in four seconds and forgotten; the
+   argument of this product is that the reader is wrong, and being wrong needs
+   a bet and a pause. */
+.pc { display:grid; place-items:center; min-height:64svh; padding:2rem 0 4rem; }
+.pc-card { display:grid; gap:1.3rem; justify-items:center; text-align:center;
+  max-width:40rem; animation:pcRise .55s cubic-bezier(.2,.7,.3,1) both; }
+.pc-card > * { margin:0; }
+@keyframes pcRise { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:none; } }
+
+.pc-eyebrow { font:500 .63rem/1 var(--mono); letter-spacing:.18em; text-transform:uppercase;
+  color:var(--ink-soft); }
+.pc-head { font-family:var(--sans); font-weight:800; letter-spacing:-.035em; line-height:1.02;
+  font-size:clamp(1.9rem,1rem + 3.6vw,3.2rem); max-width:18ch; text-wrap:balance; }
+.pc-head--under { font-weight:600; font-size:clamp(1.15rem,.85rem + 1.3vw,1.7rem);
+  letter-spacing:-.02em; line-height:1.15; max-width:24ch; }
+.pc-figure { font-family:var(--sans); font-weight:900; color:var(--red);
+  font-size:clamp(4rem,2rem + 11vw,8.5rem); line-height:.84; letter-spacing:-.055em;
+  font-variant-numeric:tabular-nums; }
+.pc-say { font-size:1rem; line-height:1.55; color:var(--ink-soft); max-width:40ch; }
+
+.pc-chips { display:flex; flex-wrap:wrap; gap:.55rem; justify-content:center; }
+.pc-chip { font:500 .95rem var(--sans); padding:.7rem 1.5rem; border:1px solid var(--line);
+  border-radius:2rem; background:var(--paper-warm); color:var(--ink); cursor:pointer;
+  transition:border-color .18s, background .18s, transform .18s; }
+.pc-chip:hover { border-color:var(--ink); transform:translateY(-1px); }
+.pc-chip:focus-visible { outline:2px solid var(--red); outline-offset:3px; }
+
+.pc-cite { display:flex; flex-wrap:wrap; gap:.3rem .8rem; justify-content:center;
+  font-family:var(--mono); font-size:.68rem; }
+.pc-cite a { color:var(--ink-soft); text-decoration:none; border-bottom:1px solid currentColor;
+  transition:color .18s; }
+.pc-cite a::before { content:"\2197\00a0"; opacity:.55; }
+.pc-cite a:hover, .pc-cite a:focus-visible { color:var(--red); }
+.pc-cite span { color:var(--ink-soft); opacity:.6; }
+
+.pc-qs { list-style:none; margin:0; padding:0; display:grid; gap:.45rem; text-align:left; }
+.pc-qs li { font-family:var(--mono); font-size:.74rem; color:var(--ink-soft);
+  display:grid; grid-template-columns:1fr auto; gap:1.4rem; }
+.pc-qs li::before { content:"\203A\00a0"; opacity:.5; }
+.pc-qs li::after { content:"rows = 0"; color:var(--red); }
+
+.pc-kin { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:.4rem;
+  justify-content:center; max-width:38rem; }
+.pc-kin li { font:500 .8rem var(--sans); padding:.35rem .75rem; border:1px solid var(--line);
+  border-radius:.5rem; background:var(--paper-warm); opacity:0; transform:translateY(6px);
+  transition:opacity .3s ease, transform .3s ease; }
+.pc-kin li.in { opacity:1; transform:none; }
+
+.pc-tally { display:flex; flex-wrap:wrap; gap:1.2rem 2rem; justify-content:center;
+  padding-top:.9rem; border-top:1px solid var(--line); max-width:36rem; }
+.pc-tally div { text-align:center; }
+.pc-tally div b { display:block; font:500 1.02rem/1.3 var(--mono); font-variant-numeric:tabular-nums; }
+.pc-tally div span { font:400 .6rem var(--mono); letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-soft); }
+
+.pc-spine { display:flex; gap:.35rem; justify-content:center; margin:0 0 2rem; }
+.pc-spine i { display:block; width:1.3rem; height:2px; background:var(--ink); opacity:.14;
+  transition:opacity .3s, width .3s; }
+.pc-spine i.on { opacity:.8; width:2rem; }
+
+.result[data-gate="false"] { cursor:pointer; }
+@media (prefers-reduced-motion:reduce) { .pc-card { animation:none; } }
+
+/* The hidden attribute must win over any display rule above, or the flat
+   collections the deck replaces keep showing underneath it. */
+[hidden] { display:none !important; }

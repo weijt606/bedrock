@@ -114,10 +114,10 @@
       </section>
 
       <section class="result" id="result" hidden>
-        <div class="score" id="score"></div>
-        <div id="concerns"></div>
-        <ol class="story" id="story"></ol>
-        <details class="sources" id="sources-wrap">
+        <div class="score" id="score" hidden></div>
+        <div id="concerns" hidden></div>
+        <ol class="story" id="story" hidden></ol>
+        <details class="sources" id="sources-wrap" hidden>
           <summary>Every document behind this <span id="sources-count"></span></summary>
           <ul class="sources__list" id="sources"></ul>
         </details>
@@ -131,6 +131,7 @@
     </main>
 
     <p class="notice" id="notice" role="status"></p>
+    <script src="play.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
