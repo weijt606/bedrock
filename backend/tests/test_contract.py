@@ -447,3 +447,19 @@ def test_editorial_reaches_the_wire():
 
     assert sample.editorial is not None
     assert sample.editorial.structure.status == "partial"
+
+
+# --------------------------------------------------------------------------- #
+#  packshot — a picture of the thing, or none at all
+# --------------------------------------------------------------------------- #
+
+def test_a_near_miss_packshot_is_refused():
+    """A full-text search will cheerfully return a biscuit for "Coca-Cola", and
+    the hero says "this is the thing you asked about" — so the wrong photograph
+    is a lie, not a rough edge. Observed live: an unfiltered search put a product
+    called "Prince" on the plinth."""
+    from app.clients.packshot import _fold
+    # folding ignores case, spacing and hyphens, and nothing else
+    assert _fold("Coca-Cola") == "cocacola" == _fold("coca cola")
+    assert _fold("Prince") != _fold("Coca-Cola")
+    assert _fold("Nutella Ferrero").startswith("nutella")

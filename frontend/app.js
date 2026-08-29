@@ -659,3 +659,78 @@ document.querySelectorAll('.popular button[data-suggest]').forEach((chip) => {
     form.requestSubmit();
   });
 });
+
+// ---------------------------------------------------------------------------
+//  the product on the plinth
+// ---------------------------------------------------------------------------
+//
+// The strata never change — they are what everything is made of. What stands on
+// them is whatever the person just named, so the hero is a picture of *their*
+// thing rather than a stock can.
+//
+// Typed a name  -> /v1/packshot finds an official photograph (Open Food Facts
+//                  first, then Wikipedia) and returns it with its background
+//                  removed and its attribution.
+// Took a photo  -> /v1/cutout removes the background from theirs.
+//
+// Both are cut out rather than generated. BiRefNet decides which of a
+// photographer's pixels are the subject; it does not invent one. A generated
+// product image, in a piece whose whole argument is that these facts are
+// checkable, would undo the argument.
+
+const coreProduct = document.querySelector('#core-product');
+const coreProductImg = document.querySelector('#core-product-img');
+let productToken = 0;
+
+function swapProduct(src, credit) {
+  if (!coreProduct || !coreProductImg || !src) return;
+  const token = ++productToken;
+  const next = new Image();
+  next.onload = () => {
+    if (token !== productToken) return;          // a newer search already won
+    coreProduct.classList.add('is-swapping');
+    window.setTimeout(() => {
+      coreProductImg.src = src;
+      coreProductImg.alt = credit ? `${credit}` : '';
+      coreProduct.classList.remove('is-swapping');
+    }, 240);
+  };
+  next.src = src;
+}
+
+async function showProductFor(name) {
+  if (!name?.trim()) return;
+  try {
+    const r = await fetch(`${API_URL}/v1/packshot?name=${encodeURIComponent(name.trim())}`);
+    if (!r.ok) return;                            // no picture is fine; keep the last
+    const shot = await r.json();
+    swapProduct(shot.cutout || shot.url, `${shot.title} — ${shot.publisher}`);
+    showJson('Packshot', shot);
+  } catch { /* the hero is decoration; never let it break a dig */ }
+}
+
+async function showProductForPhoto(file) {
+  if (!file) return;
+  const local = URL.createObjectURL(file);
+  swapProduct(local);                             // instant, before the round trip
+  try {
+    const r = await fetch(`${API_URL}/v1/cutout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_b64: await toBase64(file), mime: file.type }),
+    });
+    if (!r.ok) return;
+    const { url } = await r.json();
+    swapProduct(url);
+  } catch { /* the un-cut photo is still their photo */ }
+}
+
+document.addEventListener('bedrock:frame', (event) => {
+  // The resolved name beats what was typed: "cocacola" becomes "Coca-Cola",
+  // and a spoken or photographed subject only becomes a string here.
+  if (event.detail.type === 'subject') showProductFor(event.detail.payload.resolved_name);
+});
+photoInput?.addEventListener('change', () => showProductForPhoto(photoInput.files?.[0]));
+document.querySelectorAll('.popular button[data-suggest]').forEach((chip) => {
+  chip.addEventListener('pointerenter', () => showProductFor(chip.dataset.suggest));
+});

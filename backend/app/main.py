@@ -11,6 +11,7 @@ Interactive schema at /docs. That page is the contract with the front end.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import time
 import uuid
@@ -24,6 +25,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import cache
+from .clients.packshot import PackshotClient
 from .config import settings
 from .orchestrator import Orchestrator
 from .schemas import CoreSample, ImageDescriptionRequest, SampleRequest, StreamEvent, TranscriptionRequest
@@ -50,6 +52,7 @@ app.add_middleware(
 )
 
 _orc = Orchestrator()
+_shots = PackshotClient()
 _samples: dict[str, CoreSample] = {}
 _streams: dict[str, asyncio.Queue] = {}
 _pending: dict[str, SampleRequest] = {}
@@ -58,6 +61,7 @@ _pending: dict[str, SampleRequest] = {}
 @app.on_event("shutdown")
 async def _shutdown() -> None:
     await _orc.aclose()
+    await _shots.aclose()
 
 
 @app.get("/v1/health", tags=["meta"])
@@ -125,6 +129,51 @@ async def describe_image(req: ImageDescriptionRequest) -> dict[str, str]:
     if not text:
         raise HTTPException(422, "image could not be read")
     return {"text": text}
+
+
+@app.get("/v1/packshot", tags=["input"])
+async def packshot(name: str) -> dict[str, Any]:
+    """A picture of the named product, background removed, with attribution.
+
+    The hero stands the product on the strata it is made of, so it needs the
+    thing itself and no box around it. Open Food Facts first — its front image is
+    the photograph off the actual packet — then Wikipedia for anything that is a
+    brand rather than a barcode.
+
+    `cutout` is null when fal is not configured; the original still renders, just
+    with its background.
+    """
+    name = (name or "").strip()
+    if not name:
+        raise HTTPException(400, "name is required")
+    found = await _shots.find(name)
+    if not found:
+        raise HTTPException(404, f"no picture found for {name!r}")
+    found["cutout"] = await _shots.cut_out(found["url"])
+    return found
+
+
+@app.post("/v1/cutout", tags=["input"])
+async def cutout(req: ImageDescriptionRequest) -> dict[str, Any]:
+    """Remove the background from a photograph the person just took.
+
+    BiRefNet decides which of the photographer's pixels are the subject. It does
+    not invent one — a generated product image in a piece about verified facts
+    would undo the whole argument.
+    """
+    if not settings.has_fal:
+        raise HTTPException(503, "FAL_KEY is not configured")
+    try:
+        raw = base64.b64decode(req.image_b64, validate=False)
+    except Exception:
+        raise HTTPException(400, "image_b64 is not valid base64")
+    hosted = await _shots.upload(raw, req.mime or "image/jpeg")
+    if not hosted:
+        raise HTTPException(502, "could not stage the image")
+    cut = await _shots.cut_out(hosted)
+    if not cut:
+        raise HTTPException(502, "background removal failed")
+    return {"url": cut, "original": hosted}
 
 
 @app.get("/v1/samples/{sample_id}/events", tags=["samples"])
