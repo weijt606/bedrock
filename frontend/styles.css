@@ -632,7 +632,16 @@ body.is-loading .skeleton-screen { opacity: 1; }
   font-size: .84rem; line-height: 1.45;
   color: var(--ink-soft);
 }
-.credits__lead img { flex: none; margin-top: .1rem; }
+/* The full lockup, at its own size, because it is the only name in this strip
+   that is making a claim. It ships on an opaque near-white ground rather than
+   transparent; multiply drops that against the paper and leaves the ink, which
+   also keeps the animation intact — keying the white out would have meant
+   re-encoding it to a still. */
+.credits__cala {
+  flex: none; align-self: center;
+  width: auto; height: 1.9rem;
+  mix-blend-mode: multiply;
+}
 .credits__lead b { color: var(--ink); font-weight: 800; }
 
 .credits__stack {
