@@ -27,7 +27,8 @@ from fastapi.staticfiles import StaticFiles
 from . import cache
 from .clients.packshot import PackshotClient
 from .config import settings
-from .orchestrator import VIDEO_JOBS, Orchestrator
+from . import media
+from .orchestrator import Orchestrator
 from .schemas import CoreSample, ImageDescriptionRequest, SampleRequest, StreamEvent, TranscriptionRequest
 
 app = FastAPI(
@@ -72,10 +73,21 @@ async def sample_media(sample_id: str) -> dict:
     must never delay `editorial` or `done`. The interface polls this and shows
     a card only once it says `ready`; every other answer means show nothing.
     """
-    job = VIDEO_JOBS.get(sample_id)
-    if not job:
+    key = media.key_for(sample_id)
+    if not key:
         return {"status": "unavailable", "url": None}
-    status, url = await _orc.video.poll(*job)
+
+    # A finished loop is on disk, so this answers instantly and survives every
+    # restart between now and the demo.
+    seen = media.recall(key) or {}
+    if seen.get("url"):
+        return {"status": "ready", "url": seen["url"]}
+    if not seen.get("request_id"):
+        return {"status": "unavailable", "url": None}
+
+    status, url = await _orc.video.poll(seen["model"], seen["request_id"])
+    if status == "ready" and url:
+        media.remember_url(key, url)
     return {"status": status, "url": url}
 
 

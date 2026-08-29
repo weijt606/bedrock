@@ -31,6 +31,7 @@ from .agents import (AuditorAgent, EnricherAgent, ExtractorAgent, IntakeAgent,
 from .agents.editorial import build_conduct, build_structure
 from .clients import (CalaClient, FalClient, FalVideoClient, LLMClient,
                       PioneerClient)
+from . import media
 from .config import settings
 from .schemas import (ConcernReport, CoreSample, EditorialRoutes, EventType,
                       Flag, Gap, Layer, SampleRequest, Statute, StreamEvent,
@@ -89,14 +90,31 @@ class Orchestrator:
             motifs = [n.name for n in supply if (n.role or "").lower() == "ingredient"]
         form = _FORM.get((subject.entity_type or "").lower(), None)
 
+        photo = req.image_b64 if req.kind.value == "image" else None
+        k = media.key(subject.resolved_name, photo)
+        media.bind(self._sid, k)
+
+        # Generated once per product and style, then served from disk forever.
+        # A second search costs nothing and returns the same loop.
+        seen = media.recall(k)
+        if seen and seen.get("url"):
+            VIDEO_JOBS[self._sid] = ("", "")
+            await emit("media", {"status": "ready", "url": seen["url"], "cached": True})
+            return
+        if seen and seen.get("request_id"):
+            VIDEO_JOBS[self._sid] = (seen["model"], seen["request_id"])
+            await emit("media", {"status": "pending", "resumed": True})
+            return
+
         image_url = None
-        if req.kind.value == "image" and req.image_b64:
-            image_url = await self.video.upload(req.image_b64, req.mime or "image/jpeg")
+        if photo:
+            image_url = await self.video.upload(photo, req.mime or "image/jpeg")
 
         prompt = build_prompt(motifs, form, bool(image_url))
         job = await self.video.submit(prompt, image_url)
         if job:
             VIDEO_JOBS[self._sid] = job
+            media.remember_job(k, *job)
             await emit("media", {"status": "pending",
                                  "route": "image-to-video" if image_url else "text-to-video"})
 
