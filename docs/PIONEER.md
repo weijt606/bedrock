@@ -57,21 +57,21 @@ returned beside it. `role: chairman` is the tell that a regex never sees.
 ### The data flow
 
 ```
-                    Cala  ─────────────────────────────┐
-                      │                                 │
-        knowledge/query│                  knowledge/search│
-        typed rows     │                  markdown prose  │
-                      ▼                                 ▼
-              ┌───────────────┐                 ┌───────────────┐
-              │  ASSAY        │                 │  READER       │
-              │  classify     │                 │  extract      │
-              │  gliner2-base │                 │  gliner2-large│
-              └───────┬───────┘                 └───────┬───────┘
-                      │ kind · confidence · terminal    │ spans
-                      ▼                                 ▼
-              ┌─────────────────────────────────────────────────┐
-              │           the ownership chain, with sources     │
-              └─────────────────────────────────────────────────┘
+                                CALA
+                    ┌─────────────┴─────────────┐
+             knowledge/query            knowledge/search
+               typed rows                markdown prose
+                    │                           │
+                    ▼                           ▼
+                  ASSAY                      READER
+              gliner2-base                gliner2-large
+           what kind of thing            where the spans
+              is this row?                     are
+                    │                           │
+                    └─────────────┬─────────────┘
+                                  ▼
+                  the ownership chain, every layer
+                      still carrying its source
 ```
 
 Both take *facts that already exist* and decide something about their **shape** —

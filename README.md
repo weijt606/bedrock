@@ -49,39 +49,34 @@ is an opinion, is defamatory if wrong, and is not something this system emits.
 ## Architecture
 
 ```
-                       ┌───────────────────────────────────────────────┐
-   text ──┐            │                ORCHESTRATOR                   │
-  image ──┼──▶ INTAKE ─▶  plans the dig · fans out · enforces budgets   │
-  audio ──┘   (vision   │                                               │
-               / STT)   └───┬───────────┬───────────┬───────────┬───────┘
-                            │           │           │           │
-                   sequential           └─── concurrent ────────┘
-                            │           │           │           │
-                     ┌──────▼─────┐ ┌───▼────┐ ┌────▼─────┐ ┌───▼──────┐
-                     │ PROSPECTOR │ │SURVEYOR│ │ STATUTE  │ │ RECORDER │
-                     │  ownership │ │ supply │ │   law    │ │ filings  │
-                     └──────┬─────┘ └───┬────┘ └────┬─────┘ └───┬──────┘
-                            │           │           │           │
-                            └───────────┴─────┬─────┴───────────┘
-                                              │
-                                      ┌───────▼────────┐
-                                      │      CALA      │  ← every fact
-                                      │ knowledge graph│
-                                      └───────┬────────┘
-                                              │
-                        ┌─────────────────────┴─────────────────────┐
-                        │  typed rows                  markdown prose│
-                ┌───────▼────────┐                    ┌──────────────▼─┐
-                │ ASSAY (Pioneer)│                    │ READER (Pioneer)│
-                │ gliner2-base   │                    │ gliner2-large   │
-                │ what kind of   │                    │ where the spans │
-                │ thing is this? │                    │ are             │
-                └───────┬────────┘                    └──────────────┬─┘
-                        └─────────────────────┬─────────────────────┘
-                                              │
-                                      ┌───────▼────────┐
-                                      │   EXTRACTOR    │ → CoreSample + SSE
-                                      └────────────────┘
+  text  ──┐
+  image ──┼──▶   INTAKE   ──▶   ORCHESTRATOR
+  audio ──┘     vision · STT    plans the dig · fans out · enforces budgets
+                                            │
+                ┌───────────────┬───────────┴───────────┬───────────────┐
+                │               │                       │               │
+           PROSPECTOR       SURVEYOR                 STATUTE        RECORDER
+            ownership        supply                    law           filings
+           hop by hop      concurrent              concurrent      concurrent
+           sequential
+                │               │                       │               │
+                └───────────────┴───────────┬───────────┴───────────────┘
+                                            │
+                                          CALA
+                                every fact, with its source
+                                            │
+                        ┌───────────────────┴───────────────────┐
+                   typed rows                            markdown prose
+                        │                                       │
+                      ASSAY                                  READER
+                  gliner2-base                           gliner2-large
+              what kind of thing                       where the spans
+                  is this row?                                are
+                        │                                       │
+                        └───────────────────┬───────────────────┘
+                                            │
+                                        EXTRACTOR
+                              one CoreSample, streamed over SSE
 ```
 
 **The crew**
