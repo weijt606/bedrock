@@ -527,3 +527,16 @@ body.is-loading .skeleton-screen { opacity: 1; }
   .pc-qs li, .pc-late, .pc-figure--late { opacity: 1; transform: none; }
   .deck { transition: none; }
 }
+
+/* The verdict gates the click-anywhere advance, so it needs its own way out —
+   otherwise the card that tells you what you got wrong is the one you cannot go
+   back and re-read. */
+.pc-nav { display: flex; gap: .6rem; justify-content: center; margin: 2.4rem 0 0; }
+.pc-nav__b {
+  border: 1px solid var(--line); background: none; border-radius: 999px;
+  padding: .5rem 1.1rem; font: inherit; font-size: .82rem; cursor: pointer;
+  color: var(--ink-soft); transition: .18s ease;
+}
+.pc-nav__b:hover, .pc-nav__b:focus-visible {
+  color: var(--ink); border-color: #c3bcae; background: #fff;
+}

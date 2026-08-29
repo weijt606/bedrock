@@ -228,7 +228,14 @@
                         : 'of ' + asked + ', you got wrong.') + '</h2>'
         + '<div class="pc-tally">' + rows.join('') + '</div>'
         + '<p class="pc-say">Every figure here came back from a verified-data API with '
-        + 'the document behind it. None of it was written by a model.</p>';
+        + 'the document behind it. None of it was written by a model.</p>'
+        // The verdict gates the click-anywhere advance, so without these it is a
+        // dead end: a reader who wants to re-read the step that caught them out
+        // has no way back to it.
+        + '<div class="pc-nav">'
+        + '<button class="pc-nav__b" type="button" data-nav="-1">&larr; Back</button>'
+        + '<button class="pc-nav__b" type="button" data-nav="first">Start over</button>'
+        + '</div>';
     };
 
     let depth = 0;
@@ -257,6 +264,11 @@
 
       const fig = stage.querySelector('[data-count]');
       if (fig) countUp(fig, parseInt(fig.dataset.count, 10));
+
+      stage.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        show(b.dataset.nav === 'first' ? 0 : i + parseInt(b.dataset.nav, 10));
+      }));
 
       stage.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', (e) => {
         e.stopPropagation();

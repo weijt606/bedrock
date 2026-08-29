@@ -51,8 +51,9 @@ is an opinion, is defamatory if wrong, and is not something this system emits.
 ```
   text  ──┐
   image ──┼──▶   INTAKE   ──▶   ORCHESTRATOR
-  audio ──┘     vision · STT    plans the dig · fans out · enforces budgets
-                                            │
+  audio ──┘   fal · OpenAI      plans the dig · fans out · enforces budgets
+             reads the label                │
+             hears the name                 │
                 ┌───────────────┬───────────┴───────────┬───────────────┐
                 │               │                       │               │
            PROSPECTOR       SURVEYOR                 STATUTE        RECORDER
@@ -62,14 +63,14 @@ is an opinion, is defamatory if wrong, and is not something this system emits.
                 │               │                       │               │
                 └───────────────┴───────────┬───────────┴───────────────┘
                                             │
-                                          CALA
-                                every fact, with its source
+                              AUDITOR · ENRICHER · CALA
+                            every fact, with its source
                                             │
                         ┌───────────────────┴───────────────────┐
                    typed rows                            markdown prose
                         │                                       │
-                      ASSAY                                  READER
-                  gliner2-base                           gliner2-large
+                  ASSAY · Pioneer                        READER · Pioneer
+                   gliner2-base                           gliner2-large
               what kind of thing                       where the spans
                   is this row?                                are
                         │                                       │
@@ -77,19 +78,24 @@ is an opinion, is defamatory if wrong, and is not something this system emits.
                                             │
                                         EXTRACTOR
                               one CoreSample, streamed over SSE
+                                            │
+                        ┌───────────────────┴───────────────────┐
+                    the deck                              fal · video
+              bet · descend · verdict                 illustrative only,
+                                                      never given a fact
 ```
 
 **The crew**
 
 | Agent | Job |
 |---|---|
-| `intake` | Any input becomes one `Subject`, resolved against Cala's entity index |
+| `intake` | **fal** hears a spoken name, **OpenAI** reads a photographed label; either way one `Subject`, resolved against Cala |
 | `prospector` | Walks the ownership chain hop by hop until it reaches a person |
 | `surveyor` | Manufacturers, co-packers, and which other brands use the same factory group |
 | `statute` | The regulations that dictate what the label must declare |
 | `recorder` | Litigation and sanctions listings, as filed |
-| `reader` | Turns Cala's *prose* answers back into structured layers with GLiNER2 |
-| `assay` | Decides what kind of thing each registry row names, and whether the chain ends there |
+| `reader` | **Pioneer** — turns Cala's *prose* answers back into structured layers |
+| `assay` | **Pioneer** — what kind of thing each registry row names, and whether the chain ends there |
 | `extractor` | Folds everything into one `CoreSample` and computes the game numbers |
 
 ---
