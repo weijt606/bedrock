@@ -39,13 +39,17 @@
           </p>
 
           <form class="composer" id="intake-form" autocomplete="off">
-            <div class="media-preview" id="media-preview" hidden>
-              <img id="photo-preview" alt="">
-              <span id="attachment-label"></span>
-              <button class="remove-media" id="remove-photo" type="button" aria-label="Remove photo">&times;</button>
-            </div>
 
             <div class="composer__bar">
+              <!-- The attachment lives inside the bar, in front of the words: it
+                   is part of what you are asking, not a notice about it. -->
+              <div class="attach" id="media-preview" hidden>
+                <img id="photo-preview" alt="">
+                <button class="attach__x" id="remove-photo" type="button"
+                        aria-label="Remove photo">&times;</button>
+                <span class="attach__label" id="attachment-label"></span>
+              </div>
+
               <textarea id="subject" rows="1" placeholder="Coca-Cola" aria-label="Product or brand"></textarea>
 
               <div class="default-controls">
@@ -89,11 +93,10 @@
                cut out, so nothing has to be masked and no dark ground shows. The
                moment somebody names something it cross-fades to the plinth with
                that product standing on it. -->
-          <img class="core__default" id="core-default" src="assets/hero-default.png" alt="">
+          <img class="core__default" src="assets/hero-default.png" alt="">
           <div class="core__product" id="core-product">
             <img id="core-product-img" alt="">
           </div>
-          <img class="core__plinth" id="core-plinth" src="assets/plinth.png" alt="">
           <ul class="core__legend">
             <li style="--y:9%"><img src="assets/circle-dot-svgrepo-com.svg" alt=""><b>What you see</b><span>The product</span></li>
             <li style="--y:26%"><img src="assets/flask-2-svgrepo-com.svg" alt=""><b>Ingredients</b><span>What's inside</span></li>

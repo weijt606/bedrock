@@ -529,7 +529,8 @@ def test_origin_is_asked_for_rather_than_read_out_of_prose():
 def test_the_send_button_says_working_for_as_long_as_the_work_takes():
     """A cold trace runs 30-90 seconds. A spinner would claim progress we cannot
     measure and a dead button looks broken, so the button breathes instead —
-    which promises only "still going", the honest amount.
+    which promises only "still going", the honest amount. Black, with the white
+    glass: it is the one control on the page and needs no second colour.
 
     It stops on the first layer rather than on `done`, because by then the reader
     has a chain arriving and no longer needs a button to tell them anything.
@@ -543,7 +544,7 @@ def test_the_send_button_says_working_for_as_long_as_the_work_takes():
     # a second submit while one is in flight must not start another
     assert "sendButton.classList.contains('is-working')) return;" in js
 
-    assert "--go:" in css and ".send-button.is-working" in css
+    assert ".send-button.is-working" in css
     assert "@keyframes sb-breathe" in css
     # and it must hold still for anyone who asked it to
     reduced = css[css.rindex("@media (prefers-reduced-motion: reduce)"):]
