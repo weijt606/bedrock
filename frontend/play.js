@@ -65,8 +65,12 @@
 
   function build(sample) {
     const cards = [];
+    // An unanswered guess is a question the deck can never settle: the verdict
+    // card skips it, so the player commits to a position and is then told
+    // nothing. `ends_in_country` comes back null whenever Cala returned no
+    // address on the last shareholder row, which is often.
     const guesses = (sample.guesses || []).filter(
-      (g) => g.question && (g.options || []).length);
+      (g) => g.question && (g.options || []).length && g.answer);
     // Two kinds of wager. The chain ones open the deck — they are a puzzle, and
     // being wrong about them is a surprise. The concern ones are not a puzzle:
     // they are asked one card before the record answers them, so the reader has
