@@ -479,9 +479,10 @@ body.is-loading .skeleton-screen { opacity: 1; }
 .pc-answer { font-family:var(--sans); font-weight:900; color:var(--red);
   font-size:clamp(2.6rem,1.4rem + 5.4vw,5.4rem); line-height:.92;
   letter-spacing:-.045em; max-width:14ch; text-wrap:balance; }
-/* What the reader committed to, quoted back at them. Mono, because it is the
-   one line on the card that is about them and not about the company. */
-.pc-said { font:500 .78rem/1.4 var(--mono); letter-spacing:.02em; color:var(--red); }
+/* What the reader committed to, quoted back at them. It wears the reveal
+   card's own eyebrow so an answer reads the same wherever it lands, and sits
+   directly under the section label, so it is pulled up out of the card gap. */
+.pc-said { margin-top:-.95rem; }
 
 .pc-chips { display:flex; flex-wrap:wrap; gap:.55rem; justify-content:center; }
 .pc-chip { font:500 .95rem var(--sans); padding:.7rem 1.5rem; border:1px solid var(--line);
