@@ -270,7 +270,24 @@ class Orchestrator:
                     editorial_holder.append(nonlocal_editorial)
 
             if "siblings" in req.include and ls:
-                owner = next((l.name for l in reversed(ls) if l.kind.value == "company"), ls[-1].name)
+                # The brands belong to the last *corporate* entity before the
+                # chain turns human. Once ownership reaches a person or a family,
+                # everything past it is that person's other holdings rather than
+                # the brand's parent. Measured on Nutella, where the chain runs
+                #
+                #   Ferrero Group -> Ferrero family -> Giovanni Ferrero
+                #                 -> Ferrara Candy UK Limited
+                #
+                # taking the last company asked "List every brand owned by
+                # Ferrara Candy UK Limited" and got 30 real rows — Nerds,
+                # SweeTarts, Trolli. They are simply not an answer to the
+                # question the player asked. Ferrero Group returns 94 including
+                # Nutella, Kinder, Ferrero Rocher and Tic Tac, which is what
+                # "you were choosing between them" is supposed to mean.
+                human = next((i for i, l in enumerate(ls)
+                              if l.kind.value in ("person", "family")), len(ls))
+                corporate = [l for l in ls[:human] if l.kind.value == "company"]
+                owner = corporate[-1].name if corporate else ls[0].name
                 q = f"List every brand owned by {owner}"
                 await emit("probe", {"query": q, "agent": "prospector"})
                 res = await self.cala.query(q)
