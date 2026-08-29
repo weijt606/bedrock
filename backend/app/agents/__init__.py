@@ -6,6 +6,7 @@
     surveyor    a Subject          -> manufacturers, co-packers, shared factories
     statute     a Subject          -> the laws that govern what its label must say
     recorder    a Subject          -> litigation and sanctions listings, as filed
+    enricher    a narrow question  -> Evidence carrying document URLs
     assay       raw Cala rows      -> entity kind, confidence, chain termination
     extractor   everything above   -> one CoreSample
 
@@ -19,7 +20,8 @@ from .reader import ReaderAgent
 from .surveyor import SurveyorAgent
 from .statute import StatuteAgent
 from .recorder import RecorderAgent
+from .enricher import EnricherAgent
 from .extractor import ExtractorAgent
 
-__all__ = ["IntakeAgent", "ReaderAgent", "ProspectorAgent", "SurveyorAgent", "StatuteAgent",
-           "RecorderAgent", "ExtractorAgent"]
+__all__ = ["IntakeAgent", "ReaderAgent", "ProspectorAgent", "SurveyorAgent",
+           "StatuteAgent", "RecorderAgent", "EnricherAgent", "ExtractorAgent"]

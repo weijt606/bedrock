@@ -31,6 +31,7 @@ class CalaResult:
     fact_ids: list[str] = field(default_factory=list)
     documents: list[str] = field(default_factory=list)
     citations: list[dict[str, str]] = field(default_factory=list)
+    explainability: list[dict[str, Any]] = field(default_factory=list)
     latency_s: float = 0.0
     cached: bool = False
     error: str | None = None
@@ -110,6 +111,7 @@ class CalaClient:
             res.content = payload["content"]
 
         for item in payload.get("explainability") or []:
+            res.explainability.append(item or {})
             for ref in (item or {}).get("references") or []:
                 if ref not in res.fact_ids:
                     res.fact_ids.append(ref)
