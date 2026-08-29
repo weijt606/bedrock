@@ -671,7 +671,28 @@ document.addEventListener('bedrock:frame', (event) => {
   }
 });
 
-document.addEventListener('bedrock:result', (event) => renderResult(event.detail));
+/* The deck is the interface. renderResult still runs first and fills the flat
+   collections — they stay in the DOM, hidden, so the sources list and anything
+   else reading them keeps working — and then the cards mount on top. */
+const mountDeck = (sample) => {
+  if (!window.BedrockPlay) return;
+  resultView.querySelectorAll('.deck').forEach((d) => d.remove());
+  const deck = document.createElement('div');
+  deck.className = 'deck';
+  resultView.prepend(deck);
+  window.BedrockPlay.mount(deck, sample);
+  // renderResult filled these a moment ago; keep them in the DOM but out of the
+  // way, because every card already carries its own citations.
+  ['score', 'concerns', 'story', 'sources-wrap'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = true;
+  });
+};
+
+document.addEventListener('bedrock:result', (event) => {
+  renderResult(event.detail);
+  mountDeck(event.detail);
+});
 
 againButton?.addEventListener('click', () => {
   resultView.hidden = true;
