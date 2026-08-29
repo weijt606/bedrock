@@ -1,0 +1,609 @@
+<title>Who Owns Your Kitchen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=IBM+Plex+Mono:wght@300;400;500&display=swap">
+
+<style>
+  :root{
+    --candy:#C4342A; --sun:#E2A33C; --drab:#B9B2A2; --slategreen:#97A29B; --ledger:#C8CEC5;
+    --cream:#FBF3E4; --soot:#241F19; --slate:#2B332D; --void:#14120F;
+    --serif:"Fraunces","Iowan Old Style",Georgia,serif;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --ink:var(--cream);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--candy);color:var(--ink);font-family:var(--serif);
+       font-optical-sizing:auto;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  #ground{position:fixed;inset:0;background:var(--candy);z-index:0;
+    transition:background-color 1.1s cubic-bezier(.4,0,.2,1)}
+  .wrap{position:relative;z-index:2;padding:0 max(1.3rem,5vw)}
+  .col{width:min(40rem,100%)}
+  button{font:inherit;color:inherit}
+
+  .eyebrow{font-family:var(--mono);font-size:.66rem;letter-spacing:.22em;text-transform:uppercase;
+    opacity:.6;margin:0 0 1.4rem}
+  h1{font-variation-settings:"SOFT" 60,"WONK" 1;font-weight:600;
+    font-size:clamp(2.5rem,8vw,4.6rem);line-height:.95;letter-spacing:-.025em;
+    margin:0 0 1.1rem;text-wrap:balance}
+  h2{font-variation-settings:"SOFT" 40;font-weight:500;font-size:clamp(1.7rem,4.6vw,2.6rem);
+    line-height:1.06;letter-spacing:-.02em;margin:0 0 1rem;text-wrap:balance}
+  p{font-size:1.05rem;line-height:1.6;margin:0 0 1rem;max-width:32rem}
+  .lede{font-size:1.18rem;line-height:1.55}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+  /* ---------------- view switching ---------------- */
+  .view{min-height:100svh;display:flex;flex-direction:column;justify-content:center;
+    padding:12svh 0;position:relative;z-index:2}
+  .view[hidden]{display:none}
+
+  /* ---------------- ask ---------------- */
+  .ask{display:flex;gap:.6rem;flex-wrap:wrap;margin:2.4rem 0 1rem;max-width:34rem}
+  .ask input{flex:1 1 16rem;min-width:0;background:transparent;border:0;
+    border-bottom:2px solid currentColor;color:inherit;font-family:var(--serif);
+    font-size:1.5rem;padding:.5rem .1rem;outline-offset:4px}
+  .ask input::placeholder{color:currentColor;opacity:.4}
+  .btn{background:currentColor;border:0;padding:.75rem 1.3rem;cursor:pointer;
+    font-family:var(--mono);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;
+    transition:opacity .2s ease}
+  .btn span{color:var(--candy)}
+  .btn:hover,.btn:focus-visible{opacity:.82}
+  .btn--ghost{background:none;border:1px solid currentColor;padding:.72rem 1.1rem}
+  .btn--ghost span{color:inherit}
+
+  .suggest{display:flex;flex-wrap:wrap;gap:.4rem .5rem;margin:.8rem 0 0;padding:0;list-style:none}
+  .suggest button{background:none;border:1px solid currentColor;padding:.32rem .6rem;cursor:pointer;
+    font-family:var(--mono);font-size:.74rem;opacity:.62;transition:opacity .2s ease}
+  .suggest button:hover,.suggest button:focus-visible{opacity:1}
+
+  .status{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;opacity:.5;margin-top:2.6rem}
+  .status b{font-weight:400;opacity:1}
+
+  /* ---------------- guess ---------------- */
+  .guess{margin:2.2rem 0 0}
+  .guess h3{font-family:var(--serif);font-variation-settings:"SOFT" 40;font-weight:500;
+    font-size:1.4rem;margin:0 0 1rem;letter-spacing:-.01em}
+  .chips{display:flex;flex-wrap:wrap;gap:.45rem;padding:0;margin:0 0 2.6rem;list-style:none}
+  .chips button{background:none;border:1px solid currentColor;padding:.5rem .85rem;cursor:pointer;
+    font-family:var(--mono);font-size:.8rem;opacity:.6;transition:.2s ease}
+  .chips button:hover,.chips button:focus-visible{opacity:1}
+  .chips button[aria-pressed="true"]{opacity:1;background:currentColor}
+  .chips button[aria-pressed="true"] span{color:var(--candy)}
+
+  /* ---------------- dig ---------------- */
+  .layer{padding:5svh 0;border-top:1px solid rgba(255,255,255,.001);
+    animation:rise .7s cubic-bezier(.2,.7,.3,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+  .layer__step{font-family:var(--mono);font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;
+    opacity:.55;margin:0 0 .8rem}
+  .layer__name{font-family:var(--mono);font-weight:400;font-size:clamp(1.25rem,3.4vw,1.85rem);
+    line-height:1.24;margin:0 0 .7rem;letter-spacing:-.01em}
+  .layer__name.human{font-family:var(--serif);font-variation-settings:"SOFT" 40;font-weight:500;
+    font-size:clamp(1.7rem,4.4vw,2.5rem)}
+  .layer__meta{font-family:var(--mono);font-size:.84rem;line-height:1.75;opacity:.72;margin:0}
+  .layer__addr{font-family:var(--mono);font-size:1.05rem;line-height:1.55;margin:.9rem 0 0}
+
+  .probe{font-family:var(--mono);font-size:.78rem;line-height:1.9;opacity:.66;
+    display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap;padding:3.5svh 0}
+  .probe .dots::after{content:"";animation:dots 1.2s steps(4,end) infinite}
+  @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+  .probe .t{opacity:.55}
+
+  .trail{position:fixed;left:max(1.3rem,5vw);bottom:1.4rem;z-index:6;
+    font-family:var(--mono);font-size:.74rem;letter-spacing:.14em;opacity:.7;
+    display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+  .trail[hidden]{display:none}
+  .trail i{font-style:normal;opacity:.4}
+  .trail b{font-weight:500}
+
+  #back{position:fixed;z-index:6;left:max(1.3rem,5vw);top:1.3rem;
+    font-family:var(--mono);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;
+    background:none;border:0;cursor:pointer;opacity:.55;padding:.4rem 0;transition:opacity .2s ease}
+  #back:hover,#back:focus-visible{opacity:1}
+  #back[hidden]{display:none}
+
+  /* ---------------- verdict ---------------- */
+  .score{display:flex;flex-wrap:wrap;gap:2.6rem;margin:2.6rem 0 3rem}
+  .score div{min-width:7rem}
+  .score b{display:block;font-family:var(--serif);font-size:clamp(2.6rem,7vw,3.8rem);
+    font-weight:400;letter-spacing:-.03em;line-height:1;margin-bottom:.35rem}
+  .score span{font-family:var(--mono);font-size:.7rem;letter-spacing:.09em;
+    text-transform:uppercase;opacity:.6;line-height:1.4;display:block}
+  .score .hit b{color:#2F6B3A}
+  .score .miss b{color:var(--candy)}
+
+  .brands{display:flex;flex-wrap:wrap;gap:.4rem .45rem;margin:1.6rem 0 0;padding:0;list-style:none;
+    max-width:40rem}
+  .brands li{font-family:var(--mono);font-size:.76rem;border:1px solid currentColor;
+    padding:.28rem .5rem;opacity:.62}
+  .brands li[data-hot="1"]{opacity:1;border-color:var(--candy);color:var(--candy)}
+
+  .zero{font-family:var(--mono);font-size:.92rem;line-height:2;margin:2.4rem 0 0;
+    padding:1.4rem 1.5rem;border:1px solid currentColor;opacity:.85;max-width:32rem}
+  .zero em{font-style:normal;color:var(--candy)}
+
+  /* ---------------- shelf / convergence ---------------- */
+  .shelf{display:flex;flex-wrap:wrap;gap:.5rem;padding:0;margin:1.6rem 0 0;list-style:none}
+  .shelf li{font-family:var(--mono);font-size:.76rem;border:1px solid currentColor;
+    padding:.4rem .65rem;display:flex;gap:.6rem;align-items:baseline}
+  .shelf li i{font-style:normal;opacity:.5}
+  .shelf li[data-shared="1"]{border-color:var(--candy);color:var(--candy)}
+
+  .diagram{margin:2.6rem 0 0;overflow-x:auto;padding-bottom:1rem}
+  .diagram svg{display:block;width:100%;min-width:640px;height:auto}
+  .dg-line{fill:none;stroke:currentColor;stroke-opacity:.28;stroke-width:1.1}
+  .dg-line.shared{stroke:var(--candy);stroke-opacity:.9;stroke-width:2}
+  .dg-node{fill:currentColor;fill-opacity:.5}
+  .dg-node.shared{fill:var(--candy);fill-opacity:1}
+  .dg-t{font-family:var(--mono);font-size:12px;fill:currentColor;text-anchor:middle;fill-opacity:.62}
+  .dg-t.shared{fill:var(--candy);fill-opacity:1;font-weight:500}
+
+  .foot{background:var(--void);color:#8B857A;position:relative;z-index:4;
+    font-family:var(--mono);font-size:.72rem;line-height:1.9;padding:4rem max(1.3rem,5vw) 6rem}
+  .foot b{color:#C8C2B6;font-weight:500}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  }
+</style>
+
+<div id="ground" aria-hidden="true"></div>
+<button id="back" hidden>&larr; start over</button>
+<div class="trail" id="trail" hidden></div>
+
+<div class="wrap">
+
+  <!-- ============ 1. ASK ============ -->
+  <section class="view" id="vAsk">
+    <div class="col">
+      <p class="eyebrow">A game about things you already own</p>
+      <h1>Who owns your kitchen?</h1>
+      <p class="lede">Name anything on your shelf. We will follow it up through the company that makes it, the company that owns that one, and the one above that, until we reach a human being.</p>
+      <p class="lede">Guess where it ends before we look. Most people are wrong.</p>
+
+      <div class="ask">
+        <input id="q" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Chupa Chups, Estrella Damm, Nutella&hellip;" aria-label="Product or brand name">
+        <button class="btn" id="go" type="button"><span>Dig</span></button>
+        <button class="btn btn--ghost" id="cam" type="button"><span>Photograph it</span></button>
+        <input id="file" type="file" accept="image/*" capture="environment" hidden>
+      </div>
+      <ul class="suggest" id="suggest"></ul>
+      <p class="status" id="status"></p>
+    </div>
+  </section>
+
+  <!-- ============ 2. GUESS ============ -->
+  <section class="view" id="vGuess" hidden>
+    <div class="col">
+      <p class="eyebrow" id="gSubject"></p>
+      <div class="guess">
+        <h3>Which country does the ownership end in?</h3>
+        <ul class="chips" id="gCountry"></ul>
+        <h3>How many steps until you reach a person?</h3>
+        <ul class="chips" id="gDepth"></ul>
+      </div>
+      <button class="btn" id="startDig" type="button" disabled><span>Start digging</span></button>
+    </div>
+  </section>
+
+  <!-- ============ 3. DIG ============ -->
+  <section class="view" id="vDig" hidden><div class="col" id="digCol"></div></section>
+
+  <!-- ============ 4. VERDICT ============ -->
+  <section class="view" id="vEnd" hidden><div class="col" id="endCol"></div></section>
+
+</div>
+
+<div class="foot">
+  <p><b>Who Owns Your Kitchen</b> &mdash; prototype, TechEurope Barcelona.</p>
+  <p>Every ownership fact comes from the <b>Cala</b> API (<b>knowledge/query</b>, <b>knowledge/search</b>).
+     Each layer shows the exact query that produced it and how long it took. Cold queries take 16&ndash;75 seconds;
+     once a query has run, it returns in about half a second forever, which is why the dig speeds up as more
+     people play. Photograph mode uses vision to read the brand name off the label and nothing else &mdash;
+     no fact on this page is written by a language model.</p>
+</div>
+
+<script>
+/* =====================================================================
+   Bundled digs. Every value was returned by the Cala API; q = the query,
+   t = observed latency in seconds.
+   ===================================================================== */
+var DIGS = [
+{
+  id:"chupa", name:"Chupa Chups",
+  born:{city:"Barcelona", cc:"ES", year:1958, who:"Enric Bernat"},
+  hops:[
+    {name:"Perfetti Van Melle", kind:"co", cc:"NL",
+     meta:["acquired July 2006","formed 2001 &mdash; merger of Perfetti SpA (IT) and Van Melle Group B.V. (NL)"],
+     q:"Chupa Chups.manufactured_by", t:0.5},
+    {name:"Perfetti Van Melle Group B.V.", kind:"co", cc:"NL",
+     meta:["headquarters Schiphol-Oost, Netherlands","legal_name &middot; LEI &middot; employee_count on file"],
+     q:"retrieve_entity fc29d917-b79c-441e-9250-b77018954472", t:1.2},
+    {name:"C+F Confectionery and Foods S.A.", kind:"co", cc:"LU",
+     meta:["direct parent","also on record: C + F Nederland B.V."],
+     addr:"10, Rue Henri M. Schnadt<br>L-2530 Luxembourg",
+     q:"Perfetti Van Melle.shareholders", t:34.0},
+    {name:"The Perfetti family", kind:"human", cc:"IT",
+     meta:["Augusto Perfetti &mdash; co-owner","Giorgio Perfetti &mdash; co-owner","privately held, not listed"],
+     q:"Perfetti Van Melle.owner", t:0.5}
+  ],
+  also:{label:"Everything else that ends at the same address", n:32,
+    q:"List every brand owned by Perfetti Van Melle", t:33.4,
+    items:["Chupa Chups","Mentos","Trident","Smint","Airheads","Alpenliebe","Big Babol","Brooklyn",
+      "Bubbaloo","Bubblicious","Cachou Lajaunie","Center Fruit","Chiclets","Daygum","Dentyne","Frisk",
+      "Fruittella","Golia","Happydent","Hollywood","Klene","Look-O-Look","Meller","Morositas","Negro",
+      "Stimorol","Stop Not","Sula","V6","La Vosgienne","Vigorsol","Vivident"]},
+  zero:["Chupa Chups.sugar_origin"]
+},
+{
+  id:"damm", name:"Estrella Damm",
+  born:{city:"Barcelona", cc:"ES", year:1876, who:"August Kuentzmann Damm"},
+  hops:[
+    {name:"Sociedad An&oacute;nima Damm", kind:"co", cc:"ES",
+     meta:["brewer and brand owner"], q:"Who owns Estrella Damm?", t:18.0},
+    {name:"Seven names on the share register", kind:"co", cc:"ES",
+     meta:["Demetrio Carceller Arce &mdash; executive chairman and owner",
+           "DISA Corporaci&oacute;n Petrol&iacute;fera, S.A. &mdash; corporate shareholder",
+           "DISA Financiaci&oacute;n, S.A.U.","Seegrund, B.V.","Hardman-Ceres, S.L.",
+           "Rudolf August Oetker / Ernst Friedrich Schroeder &mdash; representing Oetker family interest",
+           "Pau Furriol i Fornells"],
+     q:"Damm S.A. shareholders", t:36.8},
+    {name:"The Oetker family, and Demetrio Carceller Arce", kind:"human", cc:"DE",
+     meta:["a German industrial family and a Spanish petroleum executive",
+           "sitting on the register of the beer that advertises the Catalan coast"],
+     q:"Damm S.A. shareholders", t:36.8}
+  ],
+  also:{label:"Thirteen ways to order the same register", n:13,
+    q:"Which brands are owned by Damm S.A.?", t:30.8,
+    items:["Estrella Damm","Voll-Damm","Inedit","Complot IPA","Daura","Free Damm","Xibeca",
+      "Damm Lemon","Malquerida","A.K. Damm","Bock Damm","Cerveza de Navidad","Estrella de Levante"]},
+  zero:["Estrella Damm.barley_supplier","Estrella Damm.hops_supplier"]
+},
+{
+  id:"freixenet", name:"Freixenet",
+  born:{city:"Sant Sadurn&iacute; d'Anoia", cc:"ES", year:1914, who:"the Ferrer and Sala families"},
+  hops:[
+    {name:"Henkell &amp; Co. Sektkellerei KG", kind:"co", cc:"DE",
+     meta:["50.7% &mdash; majority owner","part of the Oetker Group"],
+     q:"Who owns Freixenet?", t:24.6},
+    {name:"The Oetker family", kind:"human", cc:"DE",
+     meta:["Ferrer family (chairman Jos&eacute; Ferrer) &mdash; 42%","Bonet clan &mdash; 7.3%",
+           "Demetrio Carceller Arce &mdash; investor and board member"],
+     q:"Who owns Freixenet?", t:24.6}
+  ],
+  also:null,
+  zero:["Freixenet.grape_growers"]
+},
+{
+  id:"colacao", name:"Cola Cao",
+  born:{city:"Barcelona", cc:"ES", year:1946, who:"Nutrexpa"},
+  hops:[
+    {name:"Idilia Foods", kind:"co", cc:"ES", meta:["formerly Nutrexpa"],
+     q:"Who owns the Cola Cao brand?", t:18.4},
+    {name:"The Ferrero family, via Marcrisfer S.L.", kind:"human", cc:"ES",
+     meta:["100% of Idilia Foods",
+           "the Barcelona family that founded Nutrexpa &mdash; not the Italian confectioner of the same name"],
+     q:"Idilia Foods shareholders", t:30.2}
+  ],
+  also:null,
+  zero:["Cola Cao.cocoa_origin"]
+},
+{
+  id:"hacendado", name:"Hacendado",
+  born:{city:"Valencia", cc:"ES", year:1983, who:"Mercadona"},
+  hops:[
+    {name:"Sixteen separate manufacturers", kind:"co", cc:"ES",
+     meta:["Casa Tarradellas &mdash; pizzas, cured meats","Entrepinares &mdash; cheese, since 2000",
+           "Grupo Siro &mdash; biscuits, pasta","Sovena / Oleoestepa &mdash; olive oil",
+           "Jealsa Rianxeira &mdash; tinned fish","Incarlopsa &mdash; ham",
+           "Importaco Casa Pons &mdash; nuts","Ultracongelados Virto &mdash; frozen vegetables"],
+     q:"Which company manufactures Hacendado products for Mercadona?", t:42.3},
+    {name:"Mercadona S.A.", kind:"co", cc:"ES",
+     meta:["28 companies hold this arrangement &mdash; interproveedores",
+           "Incarlopsa &euro;1,198m revenue (2024) &middot; Casa Tarradellas &euro;859m"],
+     q:"Who are Mercadona's interproveedores?", t:62.5},
+    {name:"The Roig family", kind:"human", cc:"ES",
+     meta:["Juan Roig &mdash; 50.66%, executive chairman and CEO",
+           "Hortensia Herrero &mdash; 27.71%, vice president",
+           "Fernando Roig &mdash; about 9%, held through Portovan S.L."],
+     q:"Who owns Mercadona?", t:29.8}
+  ],
+  also:null,
+  zero:["Hacendado.factory_addresses"]
+}
+];
+
+var COUNTRY = {ES:"Spain", NL:"Netherlands", LU:"Luxembourg", DE:"Germany", IT:"Italy",
+               FR:"France", US:"United States", GB:"United Kingdom", CH:"Switzerland"};
+var GUESS_CC = ["ES","NL","LU","DE","IT","US","GB"];
+var DEPTHS = [["1-2","two steps or fewer"],["3-4","three or four"],["5+","five or more"]];
+
+/* ---------- ground colours, one per depth ---------- */
+var SHADES = ["#C4342A","#D9762F","#E2A33C","#B9B2A2","#97A29B","#C8CEC5"];
+
+var $ = function(id){ return document.getElementById(id); };
+var ground=$("ground"), trail=$("trail"), back=$("back"), statusEl=$("status");
+var live = false, state = null;
+
+/* ---------- persistent tally ---------- */
+function load(){ try{ return JSON.parse(localStorage.getItem("wok")||"{}"); }catch(e){ return {}; } }
+function save(o){ try{ localStorage.setItem("wok", JSON.stringify(o)); }catch(e){} }
+var book = load(); book.dug = book.dug || []; book.hit = book.hit|0; book.miss = book.miss|0;
+
+/* ---------- view helpers ---------- */
+function show(id){
+  ["vAsk","vGuess","vDig","vEnd"].forEach(function(v){ $(v).hidden = (v!==id); });
+  back.hidden = (id==="vAsk");
+  window.scrollTo({top:0, behavior:"instant" in window ? "instant" : "auto"});
+}
+function shade(i){ ground.style.backgroundColor = SHADES[Math.min(i, SHADES.length-1)]; }
+
+/* ---------- boot ---------- */
+$("suggest").innerHTML = DIGS.map(function(d){
+  return '<li><button type="button" data-id="'+d.id+'">'+d.name+'</button></li>'; }).join('');
+$("suggest").addEventListener("click", function(e){
+  var b=e.target.closest("button"); if(!b) return;
+  var d = DIGS.filter(function(x){ return x.id===b.dataset.id; })[0];
+  begin(d);
+});
+
+fetch("/api/health").then(function(r){ return r.json(); }).then(function(h){
+  live = !!(h && h.cala);
+  statusEl.innerHTML = live
+    ? 'Live &mdash; <b>'+h.cached+'</b> answers already cached. Anything not cached takes 16&ndash;75 seconds to excavate.'
+      + (h.vision ? '' : ' Photograph mode needs OPENAI_API_KEY on the server.')
+    : 'Running on bundled data. Start <b>server.py</b> to dig anything not on the list.';
+}).catch(function(){
+  statusEl.innerHTML = 'Running on bundled data &mdash; five objects, all excavated live and frozen. '
+    + 'Start <b>server.py</b> with a Cala key to dig anything else.';
+});
+
+$("go").addEventListener("click", function(){ submit($("q").value); });
+$("q").addEventListener("keydown", function(e){ if(e.key==="Enter") submit($("q").value); });
+$("cam").addEventListener("click", function(){ $("file").click(); });
+$("file").addEventListener("change", function(e){
+  var f = e.target.files && e.target.files[0]; if(!f) return;
+  var fr = new FileReader();
+  fr.onload = function(){
+    var b64 = String(fr.result).split(",")[1];
+    statusEl.innerHTML = "Reading the label&hellip;";
+    fetch("/api/identify",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({image:b64, mime:f.type})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.brand && d.brand!=="UNKNOWN"){ $("q").value = d.brand; submit(d.brand); }
+        else statusEl.innerHTML = "Could not read a brand name on that photograph. Type it instead.";
+      })
+      .catch(function(){ statusEl.innerHTML = "Photograph mode needs server.py running with an OpenAI key."; });
+  };
+  fr.readAsDataURL(f);
+});
+
+function submit(text){
+  text = (text||"").trim(); if(!text) return;
+  var known = DIGS.filter(function(d){
+    return d.name.toLowerCase() === text.toLowerCase() ||
+           d.name.toLowerCase().indexOf(text.toLowerCase())===0; })[0];
+  if(known) return begin(known);
+  if(!live){
+    statusEl.innerHTML = 'Not in the bundled five. Start <b>server.py</b> with a Cala key and it will excavate anything.';
+    return;
+  }
+  begin({id:"live:"+text, name:text, born:null, hops:null, also:null, zero:null});
+}
+
+/* ---------- guessing ---------- */
+function begin(item){
+  state = {item:item, guessCC:null, guessDepth:null};
+  $("gSubject").innerHTML = "Before we look &mdash; " + item.name;
+  $("gCountry").innerHTML = GUESS_CC.map(function(c){
+    return '<li><button type="button" aria-pressed="false" data-cc="'+c+'"><span>'+COUNTRY[c]+'</span></button></li>';
+  }).join('');
+  $("gDepth").innerHTML = DEPTHS.map(function(d){
+    return '<li><button type="button" aria-pressed="false" data-d="'+d[0]+'"><span>'+d[1]+'</span></button></li>';
+  }).join('');
+  shade(0);
+  show("vGuess");
+}
+function wireChips(ul, key){
+  $(ul).addEventListener("click", function(e){
+    var b = e.target.closest("button"); if(!b) return;
+    this.querySelectorAll("button").forEach(function(x){ x.setAttribute("aria-pressed","false"); });
+    b.setAttribute("aria-pressed","true");
+    state[key] = b.dataset.cc || b.dataset.d;
+    $("startDig").disabled = !(state.guessCC && state.guessDepth);
+  });
+}
+wireChips("gCountry","guessCC");
+wireChips("gDepth","guessDepth");
+$("startDig").addEventListener("click", function(){ dig(); });
+back.addEventListener("click", function(){ shade(0); show("vAsk"); });
+
+/* ---------- the dig ---------- */
+function trailHTML(ccs){
+  return ccs.map(function(c,i){ return (i?'<i>&rarr;</i>':'')+'<b>'+c+'</b>'; }).join(' ');
+}
+function layerHTML(h, i, total){
+  var meta = (h.meta||[]).map(function(m){ return m; }).join('<br>');
+  return '<div class="layer">'
+    + '<p class="layer__step">Step '+(i+1)+' of '+total+' &nbsp;&middot;&nbsp; '+(COUNTRY[h.cc]||h.cc||'&mdash;')+'</p>'
+    + '<h2 class="layer__name'+(h.kind==="human"?" human":"")+'">'+h.name+'</h2>'
+    + (meta ? '<p class="layer__meta">'+meta+'</p>' : '')
+    + (h.addr ? '<p class="layer__addr">'+h.addr+'</p>' : '')
+    + '<p class="probe" style="opacity:.45"><span>&gt; '+h.q+'</span><span class="t">'+h.t+'s</span></p>'
+    + '</div>';
+}
+
+function dig(){
+  var item = state.item, col = $("digCol");
+  col.innerHTML = ''; show("vDig");
+  trail.hidden = false;
+  var ccs = item.born ? [item.born.cc] : [];
+  trail.innerHTML = trailHTML(ccs);
+
+  if(item.born){
+    col.innerHTML = '<div class="layer"><p class="layer__step">Where it started</p>'
+      + '<h2 class="layer__name human">'+item.name+'</h2>'
+      + '<p class="layer__meta">'+item.born.city+', '+item.born.year+'<br>'+item.born.who+'</p></div>';
+  }
+
+  if(item.hops) return replay(item, ccs, col);
+  return excavate(item, ccs, col);
+}
+
+/* bundled: reveal one layer at a time so the descent still reads as a descent */
+function replay(item, ccs, col){
+  var i = 0, total = item.hops.length;
+  (function next(){
+    if(i >= total) return setTimeout(function(){ verdict(item, ccs); }, 900);
+    var h = item.hops[i];
+    var probe = document.createElement('div');
+    probe.className = 'probe';
+    probe.innerHTML = '<span>&gt; '+h.q+'</span><span class="dots"></span>';
+    col.appendChild(probe);
+    col.lastChild.scrollIntoView({behavior:"smooth", block:"center"});
+    setTimeout(function(){
+      probe.remove();
+      col.insertAdjacentHTML('beforeend', layerHTML(h, i, total));
+      shade(i+1);
+      if(ccs[ccs.length-1] !== h.cc){ ccs.push(h.cc); trail.innerHTML = trailHTML(ccs); }
+      col.lastChild.scrollIntoView({behavior:"smooth", block:"center"});
+      i++; setTimeout(next, 1400);
+    }, 1200);
+  })();
+}
+
+/* live: build the chain for real, one Cala call at a time */
+function excavate(item, ccs, col){
+  var hops = [], step = 0, subject = item.name;
+  (function next(){
+    if(step >= 4){ item.hops = hops; return verdict(item, ccs); }
+    var q = step === 0 ? 'Who owns ' + subject + '?' : 'Who owns ' + subject + '?';
+    var probe = document.createElement('div');
+    probe.className = 'probe';
+    probe.innerHTML = '<span>&gt; '+q+'</span><span class="dots"></span><span class="t" data-t>0s</span>';
+    col.appendChild(probe);
+    probe.scrollIntoView({behavior:"smooth", block:"center"});
+    var t0 = Date.now();
+    var tick = setInterval(function(){
+      probe.querySelector('[data-t]').textContent = Math.round((Date.now()-t0)/1000)+'s';
+    }, 500);
+
+    fetch("/api/query",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({input:q})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        clearInterval(tick); probe.remove();
+        var rows = (d.payload && d.payload.results) || [];
+        if(!rows.length){
+          col.insertAdjacentHTML('beforeend',
+            '<div class="layer"><p class="layer__step">Step '+(step+1)+'</p>'
+            + '<h2 class="layer__name">rows = 0</h2>'
+            + '<p class="layer__meta">Nobody has written this down anywhere Cala can read.</p>'
+            + '<p class="probe" style="opacity:.45"><span>&gt; '+q+'</span><span class="t">'+d.latency+'s</span></p></div>');
+          item.hops = hops; return setTimeout(function(){ verdict(item, ccs); }, 900);
+        }
+        var r0 = rows[0];
+        var name = r0.owner || r0.ultimate_owner || r0.name || r0.shareholder || JSON.stringify(r0);
+        var human = /family|clan/i.test(name) || !!r0.role || !!r0.ownership_percent;
+        var meta = rows.slice(0,7).map(function(r){
+          var n = r.owner || r.name || r.shareholder || '';
+          var extra = [r.role, r.ownership_percent ? r.ownership_percent+'%' : '',
+                       r.stake_percent ? r.stake_percent+'%' : '', r.type, r.relationship]
+                      .filter(Boolean).join(' &middot; ');
+          return n + (extra ? ' &mdash; ' + extra : '');
+        });
+        var h = {name:name, kind:human?"human":"co", cc:null, meta:meta, q:q, t:d.latency};
+        hops.push(h);
+        col.insertAdjacentHTML('beforeend', layerHTML(h, step, 4));
+        shade(step+1);
+        col.lastChild.scrollIntoView({behavior:"smooth", block:"center"});
+        step++;
+        if(human){ item.hops = hops; return setTimeout(function(){ verdict(item, ccs); }, 1100); }
+        subject = name;
+        setTimeout(next, 900);
+      })
+      .catch(function(){
+        clearInterval(tick); probe.remove();
+        item.hops = hops; verdict(item, ccs);
+      });
+  })();
+}
+
+/* ---------- verdict ---------- */
+function verdict(item, ccs){
+  var hops = item.hops || [];
+  var endCC = null;
+  for(var i=hops.length-1;i>=0;i--){ if(hops[i].cc){ endCC = hops[i].cc; break; } }
+  var depth = hops.length;
+  var bandGuessed = state.guessDepth;
+  var band = depth<=2 ? "1-2" : (depth<=4 ? "3-4" : "5+");
+  var okCC = endCC ? (state.guessCC === endCC) : null;
+  var okDepth = (bandGuessed === band);
+
+  if(okCC===true) book.hit++; else if(okCC===false) book.miss++;
+  if(okDepth) book.hit++; else book.miss++;
+  if(book.dug.indexOf(item.name) < 0) book.dug.push(item.name);
+  save(book);
+
+  var countries = ccs.filter(function(v,i,a){ return a.indexOf(v)===i; });
+  var owners = {};
+  DIGS.forEach(function(d){
+    (d.hops||[]).forEach(function(h){
+      if(h.kind==="human"){ owners[h.name] = owners[h.name]||[]; owners[h.name].push(d.name); }
+    });
+  });
+  var shared = Object.keys(owners).filter(function(k){ return owners[k].length>1; });
+
+  var html = ''
+  + '<p class="eyebrow">'+item.name+' &mdash; the verdict</p>'
+  + '<h2>'+(okCC===false ? 'You were wrong about where it ends.'
+          : okCC===true ? 'You were right about where it ends.'
+          : 'The chain ran out before we could check your guess.')+'</h2>'
+  + '<div class="score">'
+  + '<div><b>'+depth+'</b><span>steps to a<br>human being</span></div>'
+  + '<div><b>'+countries.length+'</b><span>countries the<br>object passed through</span></div>'
+  + '<div class="'+(okCC?'hit':'miss')+'"><b>'+(endCC ? (COUNTRY[endCC]||endCC) : '&mdash;')+'</b>'
+  +   '<span>you said<br>'+(COUNTRY[state.guessCC]||state.guessCC)+'</span></div>'
+  + '</div>'
+  + '<p class="mono" style="opacity:.7">'+ trailHTML(countries) +'</p>';
+
+  if(item.also){
+    html += '<p class="eyebrow" style="margin-top:3rem">'+item.also.label+' &mdash; '+item.also.n+'</p>'
+      + '<ul class="brands">'+item.also.items.map(function(b){
+          return '<li'+(b===item.name?' data-hot="1"':'')+'>'+b+'</li>'; }).join('')+'</ul>';
+  }
+  if(item.zero && item.zero.length){
+    html += '<div class="zero">' + item.zero.map(function(z){
+      return '&gt; '+z+'<br>&nbsp;&nbsp;rows = <em>0</em>'; }).join('<br><br>')
+      + '</div>'
+      + '<p style="margin-top:1.4rem;opacity:.8">We can name every shareholder. We cannot name one field, '
+      + 'one farm, one factory floor. Ownership is filed by law. Origin is not.</p>';
+  }
+
+  html += '<p class="eyebrow" style="margin-top:3.4rem">Your shelf &mdash; '+book.dug.length
+        + ' dug, '+book.hit+' right, '+book.miss+' wrong</p>'
+        + '<ul class="shelf">' + book.dug.map(function(n){
+            var d = DIGS.filter(function(x){ return x.name===n; })[0];
+            var hot = d && (d.hops||[]).some(function(h){ return shared.indexOf(h.name)>=0; });
+            return '<li'+(hot?' data-shared="1"':'')+'>'+n+(d?'<i>'+d.hops.length+'</i>':'')+'</li>';
+          }).join('') + '</ul>';
+
+  if(shared.length){
+    html += '<p style="margin-top:2rem">Two of the five bundled objects end at the same two names: '
+      + shared.map(function(s){ return '<strong style="color:var(--candy)">'+s+'</strong>'; }).join(' and ')
+      + '. Neither label mentions it, because no regulation asks it to.</p>';
+  }
+
+  html += '<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:3rem">'
+        + '<button class="btn" type="button" onclick="location.hash=\'\';shadeReset();showAsk()"><span>Dig another</span></button>'
+        + '</div>';
+
+  $("endCol").innerHTML = html;
+  shade(SHADES.length-1);
+  show("vEnd");
+}
+function shadeReset(){ shade(0); }
+function showAsk(){ trail.hidden = true; $("q").value=""; show("vAsk"); $("q").focus(); }
+shade(0);
+</script>
