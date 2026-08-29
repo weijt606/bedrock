@@ -78,6 +78,26 @@
           <pre id="response-output"></pre>
         </details>
       </section>
+
+      <section class="dig" id="dig" hidden>
+        <p class="eyebrow" id="dig-subject"></p>
+        <ol class="chain" id="chain"></ol>
+        <p class="probe" id="probe" hidden>
+          <span class="probe__q" id="probe-q"></span>
+          <span class="probe__t" id="probe-t">0s</span>
+        </p>
+      </section>
+
+      <section class="result" id="result" hidden>
+        <div class="score" id="score"></div>
+        <div id="concerns"></div>
+        <ol class="story" id="story"></ol>
+        <details class="sources" id="sources-wrap">
+          <summary>Every document behind this <span id="sources-count"></span></summary>
+          <ul class="sources__list" id="sources"></ul>
+        </details>
+        <button class="send-button" id="again" type="button">Trace another</button>
+      </section>
     </main>
     <div class="notice" id="notice" role="status" aria-live="polite"></div>
     <script src="app.js"></script>

@@ -256,6 +256,42 @@ async function describePhoto(photo) {
     });
   }
 }
+// ---------------------------------------------------------------------------
+//  the seam between intake and the output layer
+// ---------------------------------------------------------------------------
+//
+// This file owns *input*: text, a photograph, a voice note, and the stream that
+// comes back. It does not own what the findings look like. Everything the output
+// layer needs arrives on two DOM events, so a renderer can be swapped in without
+// touching a line of intake code:
+//
+//   document.addEventListener('bedrock:frame',  e => e.detail)  // every SSE frame
+//   document.addEventListener('bedrock:result', e => e.detail)  // the CoreSample
+//
+// `bedrock:frame` detail is {type, payload, at, agent, sample_id} — the frame as
+// the API sent it. `bedrock:result` detail is the finished CoreSample.
+// `window.BEDROCK_ONRESULT` is called with the same object, for anyone who would
+// rather have a callback.
+//
+// The renderer at the bottom of this file listens on exactly these two events and
+// nothing else. It is a reference implementation, not a dependency — delete it and
+// the seam still works.
+
+const FRAME_TYPES = [
+  'accepted', 'subject', 'plan', 'probe', 'layer', 'supply', 'statute',
+  'flag', 'concern', 'siblings', 'score', 'gap', 'done', 'error',
+];
+
+const emitFrame = (frame) => document.dispatchEvent(
+  new CustomEvent('bedrock:frame', { detail: frame }));
+
+const emitResult = (sample) => {
+  document.dispatchEvent(new CustomEvent('bedrock:result', { detail: sample }));
+  if (typeof window.BEDROCK_ONRESULT === 'function') {
+    try { window.BEDROCK_ONRESULT(sample); } catch (error) { console.error(error); }
+  }
+};
+
 async function submitToBedrock(payload) {
   showJson('Sending to Bedrock', summarizePayload(payload));
   const response = await fetch(`${API_URL}/v1/samples`, {
@@ -266,25 +302,35 @@ async function submitToBedrock(payload) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || 'Bedrock could not accept this input.');
   showJson('Bedrock accepted', data);
+
   const source = new EventSource(`${API_URL}${data.events}`);
-  ['accepted', 'subject', 'plan', 'probe', 'layer', 'supply', 'statute', 'flag', 'gap', 'siblings', 'score', 'done']
-    .forEach((type) => source.addEventListener(type, (event) => {
-      const frame = JSON.parse(event.data);
-      if (type === 'subject' && payload.kind === 'audio') {
-        const transcript = frame.payload.raw_input || frame.payload.resolved_name;
-        if (transcript) {
-          subject.hidden = false;
-          subject.disabled = false;
-          subject.value = transcript;
-          resize();
-          helper.textContent = 'Transcribed by fal';
-        }
+  FRAME_TYPES.forEach((type) => source.addEventListener(type, (event) => {
+    const frame = JSON.parse(event.data);
+    if (type === 'subject' && payload.kind === 'audio') {
+      const transcript = frame.payload.raw_input || frame.payload.resolved_name;
+      if (transcript) {
+        subject.hidden = false;
+        subject.disabled = false;
+        subject.value = transcript;
+        resize();
+        helper.textContent = 'Transcribed by fal';
       }
-      showJson(`Bedrock event: ${type}`, frame);
-      if (type === 'done') source.close();
-    }));
+    }
+    showJson(`Bedrock event: ${type}`, frame);
+    emitFrame(frame);
+    if (type === 'done') {
+      emitResult(frame.payload);
+      source.close();
+    }
+  }));
+
+  // EventSource fires `error` for transport blips too, where the browser would
+  // reconnect on its own. Only a frame the server actually sent carries `data`,
+  // and only that should end the stream — a cold dig runs 30-90s and a dropped
+  // connection mid-way is normal.
   source.addEventListener('error', (event) => {
-    if (event.data) showJson('Bedrock error', JSON.parse(event.data));
+    if (!event.data) return;
+    showJson('Bedrock error', JSON.parse(event.data));
     source.close();
   });
 }
@@ -346,4 +392,203 @@ form.addEventListener('submit', async (event) => {
       message: 'Bedrock is not reachable. Check that the local server is running.',
     });
   }
+});
+
+// ===========================================================================
+//  Reference renderer
+// ===========================================================================
+//
+//  Listens on `bedrock:frame` and `bedrock:result` and nothing else. It exists
+//  so the pipe can be seen working end to end, and so the output layer has a
+//  worked example of what arrives and when. Replacing it means deleting from
+//  here down and listening on the same two events.
+//
+//  Three things it is careful about, because each one is a way to mislead:
+//
+//   * a `provisional` layer is the reader's fast sketch, superseded by the
+//     ladder's — it is replaced, never appended to;
+//   * `status: "clear"` on a concern is rendered as "nothing filed", never as a
+//     clean bill of health;
+//   * a gap shows the ladder of phrasings that came back empty, so the silence
+//     proves itself rather than being asserted.
+
+const digView = document.querySelector('#dig');
+const chainList = document.querySelector('#chain');
+const digSubject = document.querySelector('#dig-subject');
+const probeLine = document.querySelector('#probe');
+const probeQuery = document.querySelector('#probe-q');
+const probeTimer = document.querySelector('#probe-t');
+const resultView = document.querySelector('#result');
+const scoreBox = document.querySelector('#score');
+const concernsBox = document.querySelector('#concerns');
+const storyList = document.querySelector('#story');
+const sourcesWrap = document.querySelector('#sources-wrap');
+const sourcesList = document.querySelector('#sources');
+const sourcesCount = document.querySelector('#sources-count');
+const againButton = document.querySelector('#again');
+
+const COUNTRY = {
+  ES: 'Spain', NL: 'Netherlands', LU: 'Luxembourg', DE: 'Germany', IT: 'Italy',
+  FR: 'France', GB: 'United Kingdom', US: 'United States', CH: 'Switzerland',
+  BE: 'Belgium', IE: 'Ireland', PT: 'Portugal', SE: 'Sweden', DK: 'Denmark',
+  AT: 'Austria', TR: 'Türkiye',
+};
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+let probeTicker = null;
+const stopProbe = () => {
+  window.clearInterval(probeTicker);
+  probeTicker = null;
+  probeLine.hidden = true;
+};
+const startProbe = (query) => {
+  probeQuery.textContent = query;
+  probeLine.hidden = false;
+  const started = Date.now();
+  window.clearInterval(probeTicker);
+  probeTicker = window.setInterval(() => {
+    probeTimer.textContent = `${Math.round((Date.now() - started) / 1000)}s`;
+  }, 500);
+};
+
+const layerHtml = (layer) => {
+  const human = layer.kind === 'person' || layer.kind === 'family';
+  const where = layer.country ? (COUNTRY[layer.country] || layer.country) : null;
+  const step = layer.provisional
+    ? 'read from the prose'
+    : `Step ${layer.index + 1}${where ? ` · ${where}` : ''}`;
+  const meta = (layer.detail || []).slice(0, 4).map(escapeHtml).join('<br>');
+  return `
+    <p class="chain__step">${escapeHtml(step)}</p>
+    <p class="chain__name" data-human="${human}">${escapeHtml(layer.name)}</p>
+    ${meta ? `<p class="chain__meta">${meta}</p>` : ''}
+    ${layer.address ? `<p class="chain__addr">${escapeHtml(layer.address)}</p>` : ''}`;
+};
+
+const addLayer = (layer) => {
+  stopProbe();
+  // The ladder supersedes the reader's sketch rather than stacking on top of it.
+  if (!layer.provisional) {
+    chainList.querySelectorAll('li[data-provisional="true"]').forEach((n) => n.remove());
+  }
+  const item = document.createElement('li');
+  item.dataset.provisional = String(Boolean(layer.provisional));
+  item.dataset.terminal = String(Boolean(layer.terminal));
+  item.innerHTML = layerHtml(layer);
+  chainList.appendChild(item);
+  item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+const addGap = (gap) => {
+  stopProbe();
+  const attempts = (gap.attempts || []).length
+    ? `<ul>${gap.attempts.map((q) => `<li>${escapeHtml(q)}</li>`).join('')}</ul>`
+    : '';
+  const item = document.createElement('li');
+  item.innerHTML = `
+    <p class="chain__step">Nothing on the record</p>
+    <div class="gap">
+      ${escapeHtml(gap.query)} → rows = <b>0</b>
+      ${attempts ? `<p style="margin:.7rem 0 0;opacity:.7">Asked ${gap.attempts.length} ways:</p>${attempts}` : ''}
+    </div>`;
+  chainList.appendChild(item);
+};
+
+const concernHtml = (report) => {
+  const label = report.concern.replace(/_/g, ' ');
+  const checked = (report.entities_checked || []).length;
+  if (report.status !== 'found') {
+    return `
+      <div class="concern" data-status="clear">
+        <div class="concern__head"><span>${escapeHtml(label)}</span><span>nothing filed</span></div>
+        <p class="concern__note">Asked about ${checked} ${checked === 1 ? 'company' : 'companies'}
+        in this chain and found no public record. An empty record is not a clean record.</p>
+      </div>`;
+  }
+  const flags = (report.flags || []).map((flag) => `
+    <div class="concern__flag">
+      ${flag.about ? `<span class="concern__about">${escapeHtml(flag.about)}</span>` : ''}
+      <p class="concern__title">${escapeHtml(flag.title)}</p>
+      ${flag.summary ? `<p class="concern__sum">${escapeHtml(flag.summary)}</p>` : ''}
+    </div>`).join('');
+  return `
+    <div class="concern" data-status="found">
+      <div class="concern__head"><span>${escapeHtml(label)}</span><span>on the record</span></div>
+      ${flags}
+      <p class="concern__note">Checked ${checked} ${checked === 1 ? 'company' : 'companies'}
+      in this chain. Bedrock reports what is filed; the judgement is yours.</p>
+    </div>`;
+};
+
+const renderResult = (sample) => {
+  const score = sample.score || {};
+  const trail = (score.countries || []).join(' → ');
+  scoreBox.innerHTML = `
+    <div><b>${score.hops_to_human ?? 0}</b><span>steps to<br>a person</span></div>
+    <div><b>${(score.countries || []).length}</b><span>countries<br>crossed</span></div>
+    <div class="${score.left_home ? 'hot' : ''}">
+      <b>${score.ends_in ? escapeHtml(COUNTRY[score.ends_in] || score.ends_in) : '—'}</b>
+      <span>${trail ? escapeHtml(trail) : 'ends in'}</span></div>`;
+
+  concernsBox.innerHTML = (sample.concerns || []).map(concernHtml).join('');
+
+  storyList.innerHTML = (sample.story || []).map((beat) => `
+    <li data-kind="${escapeHtml(beat.kind)}" data-weight="${beat.weight >= 0.7 ? 'high' : 'normal'}">
+      <p class="story__kind">${escapeHtml(beat.kind)}</p>
+      <p class="story__head">${escapeHtml(beat.headline)}</p>
+      ${beat.detail ? `<p class="story__detail">${escapeHtml(beat.detail)}</p>` : ''}
+    </li>`).join('');
+
+  // Every document behind every claim, deduplicated. These are real URLs from
+  // Cala's `context`, which is the difference between a citation and a footnote.
+  const urls = new Set();
+  const collect = (item) => (item?.source?.documents || []).forEach((u) => urls.add(u));
+  (sample.layers || []).forEach(collect);
+  (sample.supply || []).forEach(collect);
+  (sample.statutes || []).forEach(collect);
+  (sample.flags || []).forEach(collect);
+  (sample.concerns || []).forEach((c) => (c.flags || []).forEach(collect));
+  sourcesCount.textContent = `(${urls.size})`;
+  sourcesList.innerHTML = [...urls].map((u) => (
+    `<li><a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(u)}</a></li>`
+  )).join('');
+  sourcesWrap.hidden = urls.size === 0;
+
+  resultView.hidden = false;
+  resultView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+document.addEventListener('bedrock:frame', (event) => {
+  const { type, payload } = event.detail;
+  if (type === 'accepted') {
+    chainList.innerHTML = '';
+    concernsBox.innerHTML = '';
+    storyList.innerHTML = '';
+    resultView.hidden = true;
+    digView.hidden = false;
+  } else if (type === 'subject') {
+    digSubject.textContent = payload.resolved_name || '';
+  } else if (type === 'probe') {
+    startProbe(payload.query);
+  } else if (type === 'layer') {
+    addLayer(payload);
+  } else if (type === 'gap') {
+    addGap(payload);
+  } else if (type === 'concern') {
+    concernsBox.insertAdjacentHTML('beforeend', concernHtml(payload));
+  } else if (type === 'done' || type === 'error') {
+    stopProbe();
+  }
+});
+
+document.addEventListener('bedrock:result', (event) => renderResult(event.detail));
+
+againButton?.addEventListener('click', () => {
+  resultView.hidden = true;
+  digView.hidden = true;
+  subject.value = '';
+  resize();
+  subject.focus();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 });

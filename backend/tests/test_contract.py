@@ -365,3 +365,40 @@ def test_search_citations_resolve_to_documents_a_reader_can_open():
     assert res.documents == ["https://www.wikiwand.com/en/articles/X",
                              "https://search.gleif.org/#/record/8755"]
     assert "b0595ee6" in res.fact_ids
+
+
+def test_a_beat_never_asserts_a_relationship_the_ladder_did_not_confirm():
+    """Observed live on Nespresso: the reader lifted "SIX Swiss Exchange" out of
+    the prose — the venue Nestlé lists on — and the story template turned mention
+    order into "Nestlé S.A. answers to SIX Swiss Exchange". A beat asserts a
+    relationship, so it may only be built from a confirmed layer."""
+    from app.agents.extractor import build_story
+    from app.schemas import Score, Source, Subject
+
+    src = Source(query="q", latency_s=0.5)
+    sketch = Layer(index=0, name="SIX Swiss Exchange", kind="company",
+                   provisional=True, source=src)
+    real = Layer(index=0, name="Nestlé S.A.", kind="company", source=src)
+    subject = Subject(raw_input="Nespresso", resolved_name="Nespresso")
+
+    beats = build_story(subject, [sketch, real], Score(hops_to_human=1), [], [], [])
+    said = " ".join(b.headline for b in beats)
+    assert "SIX Swiss Exchange" not in said
+    assert "Nestlé S.A." in said
+
+
+def test_handover_wording_follows_the_data():
+    """"answers to" is right for a parent and wrong for a passive index fund
+    holding two per cent. Overstating a relationship damages the piece as much as
+    inventing one, so the verb comes from the row."""
+    from app.agents.extractor import _handover
+    from app.schemas import Source
+    src = Source(query="q", latency_s=0.5)
+    parent = Layer(index=0, name="Perfetti Van Melle", kind="company",
+                   relationship="direct parent", source=src)
+    holder = Layer(index=0, name="Vanguard Total International Stock Index Fund",
+                   kind="fund", stake_percent=2.1, source=src)
+    listed = Layer(index=0, name="Some Nominee", kind="company", source=src)
+    assert _handover("Chupa Chups", parent) == "Chupa Chups answers to Perfetti Van Melle."
+    assert "holds 2.1% of Nestlé" in _handover("Nestlé", holder)
+    assert "appears on the share register" in _handover("Nestlé", listed)
