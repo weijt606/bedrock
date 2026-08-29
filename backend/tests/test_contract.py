@@ -1,4 +1,6 @@
 """Contract tests. No network: these guard the shapes the front end builds on."""
+import pathlib
+
 import pytest
 
 from app.agents.extractor import ExtractorAgent
@@ -463,3 +465,23 @@ def test_a_near_miss_packshot_is_refused():
     assert _fold("Coca-Cola") == "cocacola" == _fold("coca cola")
     assert _fold("Prince") != _fold("Coca-Cola")
     assert _fold("Nutella Ferrero").startswith("nutella")
+
+
+def test_a_photograph_outranks_what_we_read_off_it():
+    """The name read off a label can be wrong — small type, an angle, another
+    language. The object in the person's hand cannot. So a photograph locks the
+    hero and nothing found by name afterwards may replace it.
+
+    Pinned here because the failure is silent and only visible on screen: the
+    person photographs their jar, and a moment later a stock packshot of
+    something else is standing on the plinth.
+    """
+    js = (pathlib.Path(__file__).parents[2] / "frontend" / "app.js").read_text()
+    assert "let productIsFromPhoto = false;" in js
+    # the name path must bail out when the subject came from a photograph
+    assert "if (!name?.trim() || productIsFromPhoto) return;" in js
+    # and the cut-out must be what lands on the plinth, not the raw file. The
+    # composer's own attachment thumbnail is a different thing and may use one.
+    assert "swapProduct(url, 'Your photograph')" in js
+    hero_path = js[js.index("async function showProductForPhoto"):js.index("document.addEventListener('bedrock:frame'")]
+    assert "createObjectURL" not in hero_path

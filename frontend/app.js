@@ -678,20 +678,28 @@ document.querySelectorAll('.popular button[data-suggest]').forEach((chip) => {
 // product image, in a piece whose whole argument is that these facts are
 // checkable, would undo the argument.
 
+const coreEl = document.querySelector('.core');
 const coreProduct = document.querySelector('#core-product');
 const coreProductImg = document.querySelector('#core-product-img');
 let productToken = 0;
+
+// When the person supplies a photograph, that photograph *is* the subject. The
+// name we read off it can be wrong — a label is small, angled and often not in
+// English — but the object in their hand is not in question. So a photograph
+// locks the hero: nothing found by name afterwards is allowed to replace it.
+let productIsFromPhoto = false;
 
 function swapProduct(src, credit) {
   if (!coreProduct || !coreProductImg || !src) return;
   const token = ++productToken;
   const next = new Image();
   next.onload = () => {
-    if (token !== productToken) return;          // a newer search already won
+    if (token !== productToken) return;          // a newer subject already won
+    coreEl?.classList.add('is-live');            // leave the as-shot photograph
     coreProduct.classList.add('is-swapping');
     window.setTimeout(() => {
       coreProductImg.src = src;
-      coreProductImg.alt = credit ? `${credit}` : '';
+      coreProductImg.alt = credit || '';
       coreProduct.classList.remove('is-swapping');
     }, 240);
   };
@@ -699,7 +707,7 @@ function swapProduct(src, credit) {
 }
 
 async function showProductFor(name) {
-  if (!name?.trim()) return;
+  if (!name?.trim() || productIsFromPhoto) return;
   try {
     const r = await fetch(`${API_URL}/v1/packshot?name=${encodeURIComponent(name.trim())}`);
     if (!r.ok) return;                            // no picture is fine; keep the last
@@ -711,26 +719,40 @@ async function showProductFor(name) {
 
 async function showProductForPhoto(file) {
   if (!file) return;
-  const local = URL.createObjectURL(file);
-  swapProduct(local);                             // instant, before the round trip
+  productIsFromPhoto = true;
+  helper.textContent = 'Cutting the product out…';
   try {
     const r = await fetch(`${API_URL}/v1/cutout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_b64: await toBase64(file), mime: file.type }),
     });
-    if (!r.ok) return;
+    if (!r.ok) throw new Error('cutout failed');
     const { url } = await r.json();
-    swapProduct(url);
-  } catch { /* the un-cut photo is still their photo */ }
+    // Only now does it go on the plinth. Placing the raw photograph first and
+    // replacing it a moment later showed the person their kitchen table standing
+    // on a rock, which is the opposite of the point.
+    swapProduct(url, 'Your photograph');
+    helper.textContent = '';
+  } catch {
+    // Without a cut-out it would be a rectangle sitting on the strata, so the
+    // hero keeps whatever it had and the photograph is still used for the dig.
+    helper.textContent = 'Could not separate the product from its background.';
+  }
 }
 
 document.addEventListener('bedrock:frame', (event) => {
-  // The resolved name beats what was typed: "cocacola" becomes "Coca-Cola",
-  // and a spoken or photographed subject only becomes a string here.
-  if (event.detail.type === 'subject') showProductFor(event.detail.payload.resolved_name);
+  const { type, payload } = event.detail;
+  if (type === 'accepted' && !productIsFromPhoto) return;
+  // The resolved name beats what was typed: "cocacola" becomes "Coca-Cola".
+  // It never beats a photograph.
+  if (type === 'subject') showProductFor(payload.resolved_name);
 });
+
 photoInput?.addEventListener('change', () => showProductForPhoto(photoInput.files?.[0]));
+removePhoto?.addEventListener('click', () => { productIsFromPhoto = false; });
+subject?.addEventListener('input', () => { if (!photoInput?.files?.length) productIsFromPhoto = false; });
+
 document.querySelectorAll('.popular button[data-suggest]').forEach((chip) => {
   chip.addEventListener('pointerenter', () => showProductFor(chip.dataset.suggest));
 });
