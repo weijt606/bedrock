@@ -37,6 +37,8 @@ class CalaResult:
     content: str | None = None
     fact_ids: list[str] = field(default_factory=list)
     documents: list[str] = field(default_factory=list)
+    citations: list[dict[str, str]] = field(default_factory=list)
+    explainability: list[dict[str, Any]] = field(default_factory=list)
     latency_s: float = 0.0
     cached: bool = False
     error: str | None = None
@@ -116,27 +118,40 @@ class CalaClient:
             res.content = payload["content"]
 
         for item in payload.get("explainability") or []:
+            res.explainability.append(item or {})
             for ref in (item or {}).get("references") or []:
                 if ref not in res.fact_ids:
                     res.fact_ids.append(ref)
 
-        # Resolve fact ids to documents a reader can actually open.
-        for item in payload.get("context") or []:
-            if not isinstance(item, dict):
+        # `context[]` is the only place Cala returns a citable URL, and each entry
+        # carries the publisher next to the document. Keep them paired: a bare URL
+        # cannot be rendered as "The Guardian", and a citation nobody can attribute
+        # is barely a citation. `documents` stays as the flat list callers already
+        # use; `citations` is the same information with its provenance intact.
+        for ctx in payload.get("context") or []:
+            if not isinstance(ctx, dict):
                 continue
-            fid = item.get("id")
-            if isinstance(fid, str) and fid not in res.fact_ids:
-                res.fact_ids.append(fid)
-            for origin in item.get("origins") or []:
+            cid = ctx.get("id")
+            if isinstance(cid, str) and cid not in res.fact_ids:
+                res.fact_ids.append(cid)
+            for origin in ctx.get("origins") or []:
                 if not isinstance(origin, dict):
                     continue
-                for key in ("document", "source"):
-                    ref = origin.get(key)
-                    url = ref.get("url") if isinstance(ref, dict) else None
-                    if isinstance(url, str) and url.startswith("http") \
-                            and url not in res.documents:
-                        res.documents.append(url)
-                        break
+                doc = origin.get("document") if isinstance(origin.get("document"), dict) else {}
+                src = origin.get("source") if isinstance(origin.get("source"), dict) else {}
+                # Fall back to the source URL: some origins carry a publisher
+                # without a resolvable document, and half a citation beats none.
+                url = doc.get("url") or src.get("url")
+                if not isinstance(url, str) or not url.startswith("http"):
+                    continue
+                if url in res.documents:
+                    continue
+                res.documents.append(url)
+                res.citations.append({
+                    "id": cid or "",
+                    "publisher": src.get("name") or doc.get("name") or "",
+                    "url": url,
+                })
 
         # rows sometimes carry a comma-joined `source` column of fact ids
         for row in res.rows:
