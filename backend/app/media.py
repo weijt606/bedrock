@@ -16,8 +16,14 @@ invalidates every loop without anybody having to clear a directory.
 from __future__ import annotations
 
 import hashlib
+import logging
+import pathlib
+
+import httpx
 
 from . import cache
+
+logger = logging.getLogger("bedrock.media")
 
 # Bump when PROMPT, PALETTE or the route logic in falvideo.py changes. Old loops
 # were made from a different brief and should not be served as if they were not.
@@ -55,3 +61,55 @@ def key_for(sample_id: str) -> str | None:
     hit = cache.get("video-sample", sample_id)
     payload = (hit or {}).get("payload") if hit else None
     return (payload or {}).get("key")
+
+
+# --------------------------------------------------------------------------- #
+#  the file itself
+# --------------------------------------------------------------------------- #
+#
+# Holding fal's CDN link is not the same as having the video. Those URLs expire,
+# and a demo runs on whatever network the venue has. So the bytes come down once
+# and are served from here; the remote link stays in the cache only as the thing
+# we fetched from.
+
+
+def slug(k: str) -> str:
+    """A stable, path-safe name for a key. Same hash the JSON cache uses."""
+    return hashlib.sha1(k.encode()).hexdigest()[:16]
+
+
+def file_path(k: str) -> pathlib.Path:
+    # One notion of "the cache directory", the same one the JSON answers use.
+    return cache._dir / f"video-{slug(k)}.mp4"
+
+
+def local_url(k: str) -> str:
+    return f"/v1/media/{slug(k)}.mp4"
+
+
+def file_for_slug(name: str) -> pathlib.Path | None:
+    """Resolve a served name back to a file, refusing anything that is not one
+    of ours — the name comes off the URL, so it is never trusted as a path."""
+    if not name.isalnum() or len(name) != 16:
+        return None
+    p = cache._dir / f"video-{name}.mp4"
+    return p if p.exists() else None
+
+
+async def download(k: str, url: str) -> bool:
+    """Fetch the loop once. Returns False and leaves no file behind on failure,
+    so the caller can keep serving the remote link instead."""
+    dest = file_path(k)
+    if dest.exists() and dest.stat().st_size > 0:
+        return True
+    try:
+        async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as c:
+            r = await c.get(url)
+            r.raise_for_status()
+            tmp = dest.with_suffix(".part")
+            tmp.write_bytes(r.content)
+            tmp.rename(dest)          # atomic, so a half file is never served
+        return True
+    except Exception as exc:  # noqa: BLE001 - a missing file is not an error
+        logger.warning("video download failed: %s", type(exc).__name__)
+        return False

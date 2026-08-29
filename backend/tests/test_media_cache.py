@@ -54,3 +54,17 @@ def test_a_sample_still_finds_its_loop_after_the_process_is_gone():
 def test_an_unknown_sample_recalls_nothing():
     assert media.key_for("never-seen") is None
     assert media.recall("never-seen") is None
+
+
+def test_a_served_name_must_look_like_one_of_ours():
+    """The name arrives off a URL, so it is never trusted as a path."""
+    assert media.file_for_slug("../../etc/passwd") is None
+    assert media.file_for_slug("short") is None
+    assert media.file_for_slug("a" * 16) is None          # well formed, absent
+
+
+def test_a_downloaded_file_is_served_from_us_not_from_fal():
+    k = media.key("Nutella")
+    media.file_path(k).write_bytes(b"mp4")
+    assert media.file_for_slug(media.slug(k)) == media.file_path(k)
+    assert media.local_url(k) == f"/v1/media/{media.slug(k)}.mp4"
