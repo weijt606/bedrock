@@ -68,7 +68,7 @@ class Orchestrator:
 
         # ---- 1. resolve the input -------------------------------------- #
         subject = await self.intake.run(req)
-        yield frame("subject", subject.model_dump(), self.intake.name)
+        yield frame("subject", subject.model_dump(mode="json"), self.intake.name)
         if not subject.resolved_name:
             yield frame("error", {"message": "Could not read a product name from that input."})
             return
