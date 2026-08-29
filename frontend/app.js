@@ -203,7 +203,8 @@ const stopRecording = (save) => {
 async function transcribeVoice(audio) {
   try {
     helper.textContent = 'Turning voice into text…';
-    const payload = { audio_b64: await toBase64(audio), mime: audio.type || 'audio/webm' };
+    const wav = await toWav(audio);
+    const payload = { audio_b64: await toBase64(wav), mime: 'audio/wav' };
     showJson('Sending audio to fal', summarizePayload(payload));
     const response = await fetch(`${API_URL}/v1/transcribe`, {
       method: 'POST',
@@ -256,6 +257,61 @@ async function describePhoto(photo) {
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+//  wav, because the audio model only accepts wav and mp3
+// ---------------------------------------------------------------------------
+//
+// MediaRecorder gives webm/opus on Chrome and mp4 on Safari, and the model
+// rejects both — it reads the extension off the URL and only honours .wav and
+// .mp3. Rather than convert on the server, the page decodes what it recorded and
+// re-encodes 16 kHz mono PCM here. A brand name is a second of speech; this costs
+// nothing and removes a server dependency from the path.
+
+const AUDIO_RATE = 16000;
+
+function encodeWav(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const ascii = (offset, text) => {
+    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  ascii(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  ascii(8, 'WAVEfmt ');
+  view.setUint32(16, 16, true);          // PCM header size
+  view.setUint16(20, 1, true);           // format: PCM
+  view.setUint16(22, 1, true);           // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);           // block align
+  view.setUint16(34, 16, true);          // bits per sample
+  ascii(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i += 1) {
+    const clamped = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(44 + i * 2, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+  }
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+async function toWav(blob) {
+  const context = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    const decoded = await context.decodeAudioData(await blob.arrayBuffer());
+    const frames = Math.round(decoded.duration * AUDIO_RATE);
+    const offline = new OfflineAudioContext(1, frames, AUDIO_RATE);
+    const source = offline.createBufferSource();
+    source.buffer = decoded;
+    source.connect(offline.destination);
+    source.start();
+    const rendered = await offline.startRendering();
+    return encodeWav(rendered.getChannelData(0), AUDIO_RATE);
+  } finally {
+    context.close();
+  }
+}
+
 // ---------------------------------------------------------------------------
 //  the seam between intake and the output layer
 // ---------------------------------------------------------------------------

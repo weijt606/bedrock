@@ -402,3 +402,29 @@ def test_handover_wording_follows_the_data():
     assert _handover("Chupa Chups", parent) == "Chupa Chups answers to Perfetti Van Melle."
     assert "holds 2.1% of Nestlé" in _handover("Nestlé", holder)
     assert "appears on the share register" in _handover("Nestlé", listed)
+
+
+# --------------------------------------------------------------------------- #
+#  voice input
+# --------------------------------------------------------------------------- #
+
+def test_audio_reader_takes_a_name_and_refuses_a_narration():
+    """The model answers a prompt rather than transcribing, so it can return a
+    sentence about the recording. A name is short; anything long is the model
+    narrating and is not a product name."""
+    from app.clients.falstt import FalClient
+    read = FalClient._read
+    assert read({"output": "Nespresso"}) == "Nespresso"
+    assert read({"output": '  "Chupa Chups." '}) == "Chupa Chups"
+    assert read({"output": "UNKNOWN"}) is None
+    assert read({"text": "Estrella Damm"}) == "Estrella Damm"          # whisper shape
+    assert read({"output": "The speaker appears to be naming " * 5}) is None
+
+
+def test_only_containers_the_model_accepts_are_sent():
+    """Measured: the model reads the extension off the URL and returns 422 for
+    anything but .wav/.mp3 — including the audio/webm a browser produces by
+    default, and including a data URI of valid wav bytes."""
+    from app.clients.falstt import _EXT
+    assert _EXT["audio/wav"] == "wav" and _EXT["audio/mpeg"] == "mp3"
+    assert "audio/webm" not in _EXT
