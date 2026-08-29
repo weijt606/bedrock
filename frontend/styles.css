@@ -463,3 +463,80 @@ body.is-loading .skeleton-screen { opacity: 1; }
    so, and why no figure or source ever sits inside the frame. */
 .pc-video { width:min(38rem,100%); border-radius:.75rem; display:block;
   background:var(--paper-warm); aspect-ratio:16/9; object-fit:cover; }
+
+/* ------------------------------------------------------- the deck, in motion */
+/* Four movements, each one carrying a fact rather than decorating it. */
+
+/* 1. Going down. One step of ground per ownership card, so the descent is felt.
+      The palette only cools — it never darkens into drama, because the finding
+      at the bottom is a filing cabinet, not a crypt. */
+.deck {
+  --pc-depth: 0;
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--paper) calc(100% - var(--pc-depth) * 7%), #8d8f86) 0%,
+      var(--paper) 68%);
+  transition: background 900ms cubic-bezier(.4, 0, .2, 1);
+}
+
+/* 2. Cards arrive from below when you go deeper, from above when you go back. */
+.pc-card { animation: pc-down .5s cubic-bezier(.2, .7, .3, 1) both; }
+.pc-card[data-back] { animation-name: pc-up; }
+@keyframes pc-down { from { opacity: 0; transform: translateY(26px); } }
+@keyframes pc-up   { from { opacity: 0; transform: translateY(-26px); } }
+
+/* 3. The border trail. Only ever the countries the chain actually crossed. */
+.pc-trail {
+  position: fixed; left: 50%; bottom: 3.4rem; transform: translateX(-50%);
+  display: flex; gap: .55rem; align-items: baseline; margin: 0;
+  font-family: var(--mono); font-size: .72rem; letter-spacing: .16em;
+  color: var(--ink-soft);
+}
+.pc-trail[hidden] { display: none; }
+.pc-trail b { font-weight: 500; animation: pc-pop .45s cubic-bezier(.2, .7, .3, 1) both; }
+.pc-trail i { font-style: normal; opacity: .4; }
+@keyframes pc-pop { from { opacity: 0; transform: translateY(6px); } }
+
+/* 4. The silence. Each phrasing types in, greys out, and only then does the
+      zero arrive — printing the list at once reads as "not found", which is the
+      opposite of what four empty answers mean. */
+.pc-qs li {
+  opacity: 0; transform: translateX(-8px);
+  transition: opacity .35s ease, transform .35s ease, color .35s ease;
+}
+.pc-qs li.in { opacity: 1; transform: none; }
+.pc-qs li.empty { color: var(--ink-soft); }
+.pc-qs li.empty::after { content: " → rows = 0"; color: var(--red); opacity: .85; }
+
+.pc-late, .pc-figure--late {
+  opacity: 0; transform: translateY(10px);
+  transition: opacity .5s ease, transform .5s cubic-bezier(.2, .7, .3, 1);
+}
+.pc-late.in, .pc-figure--late.in { opacity: 1; transform: none; }
+
+/* The chip that says whose record it is. It lands after the claim so the reader
+   reads what happened before learning it is filed above the packet. */
+.pc-above {
+  display: inline-block; margin: .7rem 0 0; padding: .2rem .6rem;
+  font-family: var(--mono); font-size: .72rem; letter-spacing: .04em;
+  background: var(--ink); color: var(--paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-card, .pc-trail b { animation: none; }
+  .pc-qs li, .pc-late, .pc-figure--late { opacity: 1; transform: none; }
+  .deck { transition: none; }
+}
+
+/* The verdict gates the click-anywhere advance, so it needs its own way out —
+   otherwise the card that tells you what you got wrong is the one you cannot go
+   back and re-read. */
+.pc-nav { display: flex; gap: .6rem; justify-content: center; margin: 2.4rem 0 0; }
+.pc-nav__b {
+  border: 1px solid var(--line); background: none; border-radius: 999px;
+  padding: .5rem 1.1rem; font: inherit; font-size: .82rem; cursor: pointer;
+  color: var(--ink-soft); transition: .18s ease;
+}
+.pc-nav__b:hover, .pc-nav__b:focus-visible {
+  color: var(--ink); border-color: #c3bcae; background: #fff;
+}

@@ -33,10 +33,11 @@ class ExtractorAgent:
               flags: list[Flag], siblings: list[str], gaps: list[Gap],
               concerns: list[ConcernReport] | None = None,
               editorial: EditorialRoutes | None = None,
+              origin_country: str | None = None,
               queries_run: int, cache_hits: int, agents: list[str],
               models: dict[str, str]) -> CoreSample:
 
-        origin = _origin(subject, layers)
+        origin = _iso(origin_country) or _origin(subject, layers)
         countries: list[str] = []
         for cc in ([origin] + [l.country for l in layers]):
             if cc and cc not in countries:
@@ -106,6 +107,25 @@ class ExtractorAgent:
                 models=models,
             ),
         )
+
+
+def _iso(country: str | None) -> str | None:
+    """Turn a country Cala named into the two-letter code the trail speaks.
+
+    A lookup, never an inference: a name we do not hold yields nothing.
+    """
+    if not country:
+        return None
+    c = country.strip()
+    if len(c) == 2 and c.isalpha():
+        return c.upper()
+    low = c.lower()
+    for code, name in COUNTRY_NAMES.items():
+        if name.lower() == low:
+            return code
+    return {"turkey": "TR", "turkiye": "TR", "türkiye": "TR", "usa": "US",
+            "united states of america": "US", "uk": "GB", "great britain": "GB",
+            "holland": "NL", "czechia": "CZ"}.get(low)
 
 
 def _origin(subject: Subject, layers: list[Layer]) -> str | None:

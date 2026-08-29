@@ -507,3 +507,20 @@ def test_one_name_normaliser_and_it_keeps_group_apart_from_the_parent():
     # legal form and accents are noise, and do come off
     assert normalise_name("Nestle") == normalise_name("Nestlé S.A.")
     assert normalise_name("Henkell & Co. KG") == normalise_name("Henkell & Co.")
+
+
+def test_origin_is_asked_for_rather_than_read_out_of_prose():
+    """Country of origin used to be parsed out of Cala's description, which only
+    worked when the sentence happened to name a place. "An iconic lollipop brand
+    founded in 1958 by Enric Bernat" names none, so the border trail stayed empty
+    for a product that has crossed three. It is a fact, so it is asked for like
+    every other fact — `{X}.country_of_origin`, which returns Spain for Chupa
+    Chups and Switzerland for Nespresso.
+    """
+    from app.agents.extractor import _iso
+    assert _iso("Spain") == "ES"
+    assert _iso("Switzerland") == "CH"
+    assert _iso("ES") == "ES"
+    assert _iso("Türkiye") == "TR"
+    # an unknown name yields nothing rather than a guess
+    assert _iso("Atlantis") is None and _iso(None) is None

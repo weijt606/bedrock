@@ -214,6 +214,7 @@ class Orchestrator:
         siblings: list[str] = []
         prose_layers: list[Layer] = []
         concerns: list[ConcernReport] = []
+        origin_holder: list[str] = []
         editorial_holder: list[EditorialRoutes] = []
 
         async def read_prose() -> None:
@@ -266,6 +267,27 @@ class Orchestrator:
                 else:
                     gaps.append(Gap(query=q, reason="no_rows", latency_s=res.latency_s))
 
+        async def dig_origin() -> None:
+            """Ask where the thing comes from rather than reading it off a
+            description.
+
+            Origin was being parsed out of Cala's own prose, which only works
+            when the sentence happens to name a place — "An iconic lollipop brand
+            founded in 1958 by Enric Bernat" names none, so the border trail
+            stayed empty for a product that has crossed three. It is a fact, so
+            it gets asked for like every other fact.
+            """
+            q = f"{name}.country_of_origin"
+            await emit("probe", {"query": q, "agent": "intake"})
+            res = await self.cala.query(q)
+            for row in res.rows[:1]:
+                for key in ("country_of_origin", "country", "origin"):
+                    v = row.get(key)
+                    if isinstance(v, str) and v.strip():
+                        origin_holder.append(v.strip())
+                        return
+            gaps.append(Gap(query=q, reason="no_rows", latency_s=res.latency_s))
+
         async def dig_supply() -> None:
             if "supply" not in req.include:
                 return
@@ -293,7 +315,7 @@ class Orchestrator:
             flags.extend(fs)
             gaps.extend(gs)
 
-        work = asyncio.gather(read_prose(), dig_chain(), dig_supply(),
+        work = asyncio.gather(read_prose(), dig_origin(), dig_chain(), dig_supply(),
                               dig_statute(), dig_flags())
         budget = asyncio.ensure_future(asyncio.wait_for(work, settings.total_budget_s))
 
@@ -331,6 +353,7 @@ class Orchestrator:
             sample_id=sid, started_at=started, subject=subject, layers=layers,
             supply=supply, statutes=statutes, flags=flags, concerns=concerns,
             editorial=editorial, siblings=siblings, gaps=gaps,
+            origin_country=origin_holder[0] if origin_holder else None,
             queries_run=len(sources) + len(gaps),
             cache_hits=sum(1 for s in sources if s.cached),
             agents=["intake", "reader", "prospector", "surveyor", "statute",

@@ -85,10 +85,22 @@
         ? '<p class="pc-figure">' + esc(fig.figure) + '</p>'
           + '<h2 class="pc-head pc-head--under">' + esc(fig.rest) + '</h2>'
         : '<h2 class="pc-head">' + esc(beat.headline) + '</h2>';
+      // On a `concern` the subject of the sentence is the finding: somebody has
+      // a record. That it is filed a few steps above the packet is the turn, so
+      // it lands a beat later as a chip rather than arriving inside the headline
+      // — the reader reads the claim, then sees whose it is.
+      const above = beat.kind === 'concern'
+        && /(\d+)\s+steps? above the label/.exec(beat.headline);
+      const headline = above ? beat.headline.replace(/\s*—[^—]*above the label\s*—/, ' ') : null;
+      const shown = headline
+        ? '<h2 class="pc-head">' + esc(headline) + '</h2>'
+          + '<p class="pc-above pc-late">' + esc(above[1])
+          + (above[1] === '1' ? ' step' : ' steps') + ' above the label</p>'
+        : head;
       cards.push({
-        kind: 'beat',
+        kind: 'beat', beat: beat.kind, at: beat.at_step, late: !!headline,
         html: '<p class="pc-eyebrow">' + esc(KIND_LABEL[beat.kind] || beat.kind) + '</p>'
-          + head
+          + shown
           + (beat.detail ? '<p class="pc-say">' + esc(beat.detail) + '</p>' : '')
           + citeHtml(beat.source),
       });
@@ -125,12 +137,13 @@
       const tries = (gap.attempts && gap.attempts.length ? gap.attempts : [gap.query])
         .filter(Boolean);
       cards.push({
-        kind: 'beat',
+        kind: 'silence', tries: tries,
         html: '<p class="pc-eyebrow">And what nobody has written down</p>'
-          + '<p class="pc-figure">0</p>'
-          + '<h2 class="pc-head pc-head--under">rows, however we asked.</h2>'
-          + '<ul class="pc-qs">' + tries.map((q) => '<li>' + esc(q) + '</li>').join('') + '</ul>'
-          + '<p class="pc-say">Asked ' + (tries.length === 1 ? 'once' : tries.length + ' ways')
+          + '<ul class="pc-qs" id="pcTries"></ul>'
+          + '<p class="pc-figure pc-figure--late" id="pcZero">0</p>'
+          + '<h2 class="pc-head pc-head--under pc-late" id="pcZeroHead">rows, however we asked.</h2>'
+          + '<p class="pc-say pc-late" id="pcZeroSay">Asked '
+          + (tries.length === 1 ? 'once' : tries.length + ' ways')
           + ', all empty. A question with no answer is a finding, not an error.</p>',
       });
     });
@@ -160,10 +173,24 @@
     let i = 0;
 
     root.innerHTML = '<div class="pc" id="pcStage"></div>'
+      + '<p class="pc-trail" id="pcTrail" aria-hidden="true"></p>'
       + '<div class="pc-spine" id="pcSpine">'
       + cards.map(() => '<i></i>').join('') + '</div>';
     const stage = root.querySelector('#pcStage');
+    const trail = root.querySelector('#pcTrail');
     const pips = [].slice.call(root.querySelector('#pcSpine').children);
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // The trail is the one number the reader is meant to feel: every border the
+    // thing crossed on its way to an owner. It is built from score.countries, so
+    // it only ever shows borders the chain actually crossed.
+    const borders = ((sample.score || {}).countries || []);
+    const showTrail = (upto) => {
+      trail.innerHTML = borders.slice(0, upto).map((c, k) => (
+        (k ? '<i>→</i>' : '') + '<b>' + esc(c) + '</b>'
+      )).join('');
+      trail.hidden = upto < 2;
+    };
 
     const countUp = (el, to) => {
       const t0 = performance.now();
@@ -201,24 +228,78 @@
                         : 'of ' + asked + ', you got wrong.') + '</h2>'
         + '<div class="pc-tally">' + rows.join('') + '</div>'
         + '<p class="pc-say">Every figure here came back from a verified-data API with '
-        + 'the document behind it. None of it was written by a model.</p>';
+        + 'the document behind it. None of it was written by a model.</p>'
+        // The verdict gates the click-anywhere advance, so without these it is a
+        // dead end: a reader who wants to re-read the step that caught them out
+        // has no way back to it.
+        + '<div class="pc-nav">'
+        + '<button class="pc-nav__b" type="button" data-nav="-1">&larr; Back</button>'
+        + '<button class="pc-nav__b" type="button" data-nav="first">Start over</button>'
+        + '</div>';
     };
 
+    let depth = 0;
+    const timers = [];
+    const later = (fn, ms) => timers.push(window.setTimeout(fn, reduced ? 0 : ms));
+
     function show(n) {
+      const back = n < i;
       i = Math.max(0, Math.min(cards.length - 1, n));
       const card = cards[i];
-      stage.innerHTML = '<section class="pc-card" data-kind="' + card.kind + '">'
+      timers.splice(0).forEach(window.clearTimeout);
+
+      stage.innerHTML = '<section class="pc-card" data-kind="' + card.kind + '"'
+        + (back ? ' data-back="1"' : '') + '>'
         + (card.kind === 'verdict' ? verdictHtml() : card.html) + '</section>';
       pips.forEach((p, k) => p.classList.toggle('on', k <= i));
 
+      // Going down. The ground cools by one step per ownership card, so the
+      // reader feels the descent rather than being told about it — the same
+      // move the original piece made with a scroll.
+      if (card.kind === 'beat' && (card.beat === 'handover' || card.beat === 'border'
+          || card.beat === 'terminus')) depth += 1;
+      root.style.setProperty('--pc-depth', Math.min(depth, 5));
+      showTrail(card.kind === 'verdict' ? borders.length
+                : Math.min(depth + 1, borders.length));
+
       const fig = stage.querySelector('[data-count]');
       if (fig) countUp(fig, parseInt(fig.dataset.count, 10));
+
+      stage.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        show(b.dataset.nav === 'first' ? 0 : i + parseInt(b.dataset.nav, 10));
+      }));
 
       stage.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', (e) => {
         e.stopPropagation();
         picks[card.id] = b.dataset.pick;
         show(i + 1);
       }));
+
+      // Four phrasings, typed one at a time, and only then the zero. The point
+      // of this card is that we asked repeatedly — printing the list all at once
+      // reads as "not found", which is the opposite of what it means.
+      if (card.kind === 'silence') {
+        const ul = stage.querySelector('#pcTries');
+        card.tries.forEach((q, n2) => later(() => {
+          const li = document.createElement('li');
+          li.textContent = q;
+          ul.appendChild(li);
+          requestAnimationFrame(() => li.classList.add('in'));
+          later(() => li.classList.add('empty'), 420);
+        }, 200 + n2 * 620));
+        later(() => {
+          stage.querySelectorAll('.pc-late, .pc-figure--late')
+            .forEach((el) => el.classList.add('in'));
+          const z = stage.querySelector('#pcZero');
+          if (z) z.classList.add('in');
+        }, 300 + card.tries.length * 620);
+      }
+
+      if (card.late) {
+        later(() => stage.querySelectorAll('.pc-late')
+          .forEach((el) => el.classList.add('in')), 900);
+      }
 
       if (card.kind === 'kin') {
         const ul = stage.querySelector('#pcKin');
