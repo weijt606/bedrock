@@ -30,6 +30,7 @@ class CalaResult:
     content: str | None = None
     fact_ids: list[str] = field(default_factory=list)
     documents: list[str] = field(default_factory=list)
+    citations: list[dict[str, str]] = field(default_factory=list)
     latency_s: float = 0.0
     cached: bool = False
     error: str | None = None
@@ -112,6 +113,22 @@ class CalaClient:
             for ref in (item or {}).get("references") or []:
                 if ref not in res.fact_ids:
                     res.fact_ids.append(ref)
+
+        # `context[]` is the only place Cala returns a citable URL. Each entry
+        # carries the publisher next to the document, so keep them paired — a
+        # bare URL cannot be rendered as "The Guardian" in the UI.
+        for ctx in payload.get("context") or []:
+            cid = (ctx or {}).get("id")
+            for origin in (ctx or {}).get("origins") or []:
+                url = ((origin or {}).get("document") or {}).get("url")
+                if not url or url in res.documents:
+                    continue
+                res.documents.append(url)
+                res.citations.append({
+                    "id": cid or "",
+                    "publisher": ((origin or {}).get("source") or {}).get("name") or "",
+                    "url": url,
+                })
 
         # rows sometimes carry a comma-joined `source` column of fact ids
         for row in res.rows:
