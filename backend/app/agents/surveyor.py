@@ -10,7 +10,8 @@ from typing import Any, Awaitable, Callable
 
 from ..clients.cala import CalaClient
 from ..schemas import Gap, SupplyNode
-from .base import first_name, source_of
+from .ladder import questions_to_ladders
+from .base import ask_variants, first_name, gap_from, source_of
 
 Emit = Callable[[str, dict[str, Any]], Awaitable[None]]
 
@@ -23,21 +24,26 @@ class SurveyorAgent:
 
     async def run(self, subject: str, emit: Emit,
                   questions: list[str] | None = None) -> tuple[list[SupplyNode], list[Gap]]:
-        qs = questions or [
-            f"{subject}.manufactured_by",
-            f"Who are the suppliers of {subject}?",
+        # Each entry is one *question*, expressed as several phrasings. Cala
+        # answers whichever wording it recognises; only a question that stays
+        # empty across all of them is a real gap. See base.ask_variants.
+        ladders: list[list[str]] = questions_to_ladders(questions) or [
+            [f"{subject}.manufactured_by",
+             f"Who manufactures {subject}?",
+             f"Which company physically makes {subject}?"],
+            [f"{subject}.ingredients",
+             f"{subject}.raw_material_origin",
+             f"What are {subject} made of and where do the ingredients come from?"],
         ]
         nodes: list[SupplyNode] = []
         gaps: list[Gap] = []
 
-        for q in qs:
-            await emit("probe", {"query": q, "agent": self.name})
-            res = await self.cala.query(q)
+        for ladder in ladders:
+            res, attempts = await ask_variants(self.cala, ladder, emit, self.name)
             if res.empty or res.error:
-                gaps.append(Gap(query=q, reason="no_rows" if res.empty else "error",
-                                note=res.error, latency_s=res.latency_s))
-                await emit("gap", {"query": q, "reason": res.error or "no_rows",
-                                   "latency_s": res.latency_s})
+                gap = gap_from(res, attempts)
+                gaps.append(gap)
+                await emit("gap", gap.model_dump(mode="json"))
                 continue
             src = source_of(res)
             for row in res.rows[:12]:

@@ -97,16 +97,48 @@ data: {"type":"layer","sample_id":"9f21…","seq":7,"at":32.6,"agent":"prospecto
 | `done` | `CoreSample` | The whole thing. Switch to the verdict screen |
 | `error` | `{message}` | Only for input we could not read at all |
 
-### Gaps are content, not errors
+### Gaps are content, but only once they are corroborated
 
-`reason` is one of `no_rows`, `too_complex`, `error`. A `no_rows` gap means
-nobody has published that fact anywhere Cala can read — which is the most
-interesting thing the product finds. Render it as a result:
+Cala answers a **phrasing**, not an intent. Measured on the live API:
 
 ```
-> Estrella Damm.barley_supplier
-  rows = 0
+Estrella Damm.barley_supplier        ->  0 rows
+Estrella Damm.raw_material_origin    ->  4 rows   (barley malt, rice, hops, water)
+
+Chupa Chups.raw_material_origin      ->  0 rows
+Chupa Chups.ingredients              ->  5 rows
+"What are Chupa Chups made of, and
+ where do the ingredients come from?" -> 23 rows
 ```
+
+So a single empty answer is not evidence about the world — it means we guessed
+the wrong key. Agents now ask each question several ways and only report a gap
+when every phrasing stays empty. `attempts` carries the phrasings that failed:
+
+```jsonc
+{ "query": "Estrella Damm.barley_supplier",
+  "reason": "no_rows",
+  "attempts": ["Estrella Damm.barley_supplier",
+               "Estrella Damm.raw_material_origin",
+               "What is the barley supplier of Estrella Damm?"],
+  "latency_s": 29.0 }
+```
+
+**Render `attempts`.** It is what turns "we did not find it" into "nobody has
+written it down", and it is the difference between a claim a judge can break by
+rephrasing and one they cannot:
+
+```
+> Estrella Damm.barley_supplier          rows = 0
+> Estrella Damm.raw_material_origin      rows = 0
+> What is the barley supplier of …?      rows = 0
+  ─────────────────────────────────────────────
+  asked three ways. nobody has published it.
+```
+
+`reason` is one of `no_rows`, `too_complex`, `error`, `rate_limited`. **Only
+`no_rows` is a finding.** The other three are our failure, not the record's, and
+must never be rendered as silence.
 
 ---
 
@@ -155,7 +187,10 @@ interesting thing the product finds. Render it as a result:
                   "parties": "Independent designers vs Shein", "source": {…} } ],
   "siblings": ["Mentos", "Trident", "Smint", "…"],
 
-  "gaps": [ { "query": "Estrella Damm.barley_supplier", "reason": "no_rows", "latency_s": 29.0 } ],
+  "gaps": [ { "query": "Estrella Damm.barley_supplier", "reason": "no_rows", "latency_s": 29.0,
+              "attempts": ["Estrella Damm.barley_supplier",
+                           "Estrella Damm.raw_material_origin",
+                           "What is the barley supplier of Estrella Damm?"] } ],
 
   // one report per concern the caller asked for
   "concerns": [
