@@ -6,9 +6,14 @@ Cala ownership prose and return the entities in it** — the companies, people,
 families, jurisdictions, stakes and dates. Today that is a structured-extraction
 prompt to a general-purpose model. It should be a small NER encoder.
 
-    A  frontier      gpt-4o-mini, JSON-mode structured extraction   (the incumbent)
-    B  zero-shot     fastino/gliner2-large-v1 via Pioneer           (no training)
-    C  specialist    a fine-tuned job id via Pioneer                (MODEL_READER)
+    A  frontier      a general-purpose model, JSON-mode extraction  (the incumbent)
+    B  zero-shot     fastino/gliner2-large-v1                       (no training)
+    C  specialist    a fine-tuned job id                            (MODEL_READER)
+
+All three run through Pioneer on one key, which is the point: routing the
+frontier baseline through the same gateway is how you compare a specialist
+against the model it replaces without the comparison being rigged by different
+clients, different retries or different networks.
 
 ## Where the gold labels come from
 
@@ -63,12 +68,31 @@ SUBJECTS = [
     "Red Bull", "Moleskine", "Telepizza", "Casa Tarradellas",
 ]
 
-# Per-1M-token list prices, and the per-call price Pioneer bills for an encoder.
-# Override from the environment if your account differs; the point of the table
-# is the ratio, not the third decimal place.
-PRICE_FRONTIER_IN = float(os.environ.get("PRICE_FRONTIER_IN", 0.15))
-PRICE_FRONTIER_OUT = float(os.environ.get("PRICE_FRONTIER_OUT", 0.60))
-PRICE_ENCODER_CALL = float(os.environ.get("PRICE_ENCODER_CALL", 0.0001))
+# The frontier model the specialist has to beat. Anything from GET /base-models
+# with task_type=decoder; prices below are read from that same endpoint so the
+# cost column is the account's real pricing, not a quote from a blog post.
+FRONTIER = os.environ.get("BENCH_FRONTIER", "gpt-5.6-luna")
+ZERO_SHOT = os.environ.get("BENCH_ZERO_SHOT", "fastino/gliner2-large-v1")
+_PRICES: dict[str, tuple[float, float]] = {}
+
+
+def load_prices() -> None:
+    """Pull live per-million prices so the cost comparison is not hand-waved."""
+    try:
+        r = httpx.get(f"{settings.pioneer_base}/base-models",
+                      headers={"X-API-Key": settings.pioneer_key}, timeout=30.0)
+        r.raise_for_status()
+        body = r.json()
+        for m in (body.get("models") if isinstance(body, dict) else body) or []:
+            _PRICES[m["id"]] = (float(m.get("input_price_per_million") or 0),
+                                float(m.get("output_price_per_million") or 0))
+    except Exception:
+        pass
+
+
+def price(model: str, tin: int, tout: int) -> float:
+    pin, pout = _PRICES.get(model, (0.0, 0.0))
+    return tin / 1e6 * pin + tout / 1e6 * pout
 
 
 # --------------------------------------------------------------------------- #
@@ -135,22 +159,27 @@ FRONTIER_PROMPT = (
 )
 
 
-async def run_frontier(client: httpx.AsyncClient, prose: str) -> dict[str, Any]:
+async def run_frontier(client: httpx.AsyncClient, prose: str,
+                       model: str = FRONTIER) -> dict[str, Any]:
     t0 = time.perf_counter()
     r = await client.post(
-        f"{settings.openai_base}/chat/completions",
-        json={"model": settings.model_planner, "temperature": 0,
+        f"{settings.pioneer_base}/v1/chat/completions",
+        json={"model": model, "temperature": 0,
               "response_format": {"type": "json_object"},
               "messages": [{"role": "user", "content": FRONTIER_PROMPT + prose[:6000]}]},
-        headers={"Authorization": f"Bearer {settings.openai_key}"}, timeout=90.0)
+        headers={"X-API-Key": settings.pioneer_key}, timeout=120.0)
     r.raise_for_status()
     body = r.json()
-    ents = json.loads(body["choices"][0]["message"]["content"]).get("entities") or []
-    usage = body.get("usage") or {}
-    cost = (usage.get("prompt_tokens", 0) / 1e6 * PRICE_FRONTIER_IN
-            + usage.get("completion_tokens", 0) / 1e6 * PRICE_FRONTIER_OUT)
+    raw = body["choices"][0]["message"]["content"]
+    try:
+        ents = json.loads(raw).get("entities") or []
+    except Exception:
+        start, end = raw.find("{"), raw.rfind("}")
+        ents = json.loads(raw[start:end + 1]).get("entities") or [] if start >= 0 else []
+    u = body.get("usage") or {}
     return {"entities": [e for e in ents if isinstance(e, dict)],
-            "latency_s": time.perf_counter() - t0, "cost_usd": cost}
+            "latency_s": time.perf_counter() - t0,
+            "cost_usd": price(model, u.get("prompt_tokens", 0), u.get("completion_tokens", 0))}
 
 
 async def run_pioneer(pio: PioneerClient, prose: str, model: str) -> dict[str, Any]:
@@ -162,8 +191,11 @@ async def run_pioneer(pio: PioneerClient, prose: str, model: str) -> dict[str, A
         latency = time.perf_counter() - t0
     finally:
         object.__setattr__(settings, "model_reader", prev)
-    return {"entities": (got or {}).get("entities", []),
-            "latency_s": latency, "cost_usd": PRICE_ENCODER_CALL}
+    # Encoders are billed per token in and out; the prose is the input and the
+    # spans are the output, so this is a generous estimate against the frontier.
+    approx_in = len(prose) // 4
+    return {"entities": (got or {}).get("entities", []), "latency_s": latency,
+            "cost_usd": price(model, approx_in, 200)}
 
 
 # --------------------------------------------------------------------------- #
@@ -214,17 +246,20 @@ async def cmd_run(systems: str = "A,B,C", repeat: int = 1) -> None:
     cases = json.loads(BENCH.read_text())
     wanted = {s.strip().upper() for s in systems.split(",")}
 
+    if not settings.has_pioneer:
+        sys.exit("PIONEER_API_KEY is not set")
+    load_prices()
+
     plan = []
-    if "A" in wanted and settings.has_openai:
-        plan.append(("A  frontier   " + settings.model_planner, "frontier", None))
-    if "B" in wanted and settings.has_pioneer:
-        plan.append(("B  zero-shot  fastino/gliner2-large-v1", "pioneer",
-                     "fastino/gliner2-large-v1"))
-    if "C" in wanted and settings.has_pioneer:
+    if "A" in wanted:
+        plan.append((f"A  frontier   {FRONTIER}", "frontier", FRONTIER))
+    if "B" in wanted:
+        plan.append((f"B  zero-shot  {ZERO_SHOT}", "pioneer", ZERO_SHOT))
+    if "C" in wanted and settings.model_reader != ZERO_SHOT:
         plan.append((f"C  specialist {settings.model_reader}", "pioneer",
                      settings.model_reader))
     if not plan:
-        sys.exit("nothing to run — check OPENAI_API_KEY / PIONEER_API_KEY")
+        sys.exit("nothing to run")
 
     pio = PioneerClient()
     http = httpx.AsyncClient(timeout=90.0)
@@ -238,7 +273,8 @@ async def cmd_run(systems: str = "A,B,C", repeat: int = 1) -> None:
         for case in cases:
             for _ in range(repeat):
                 try:
-                    got = (await run_frontier(http, case["prose"]) if kind == "frontier"
+                    got = (await run_frontier(http, case["prose"], model or FRONTIER)
+                           if kind == "frontier"
                            else await run_pioneer(pio, case["prose"], model or ""))
                 except Exception:
                     fails += 1

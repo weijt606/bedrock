@@ -198,7 +198,7 @@ ending. It runs on frozen data and needs no backend.
 
 ## Stack
 
-Cala (knowledge) · OpenAI (reasoning) · Pioneer (fine-tuned classification) ·
+Cala (knowledge) · OpenAI (reasoning) · Pioneer (GLiNER2 extraction + fine-tuned classification) ·
 fal (speech, cut-outs) · FastAPI · SSE · Aikido (security) · Entire (repo).
 
 Built at TechEurope Barcelona.

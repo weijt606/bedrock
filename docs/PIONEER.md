@@ -64,7 +64,7 @@ python scripts/bench.py run            # A vs B vs C
 
 | | System |
 |---|---|
-| **A** | `gpt-4o-mini`, JSON-mode structured extraction — *the incumbent* |
+| **A** | a frontier decoder (`gpt-5.6-luna` by default), JSON-mode structured extraction — *the incumbent* |
 | **B** | `fastino/gliner2-large-v1`, zero-shot |
 | **C** | our fine-tuned job id |
 
@@ -133,6 +133,83 @@ Its first run produced **101 real rows, 36 flagged low-confidence**, and turned 
 `Free float` and `Treasury shares` being classified as companies — which is why
 `not_an_entity` exists as a label and why the prospector now walks past those
 rows. Real data first, synthetic data to fill the gaps it exposes.
+
+---
+
+## What this account can actually train
+
+Read live from `GET /base-models` (27 models, 7 trainable):
+
+| Model | Type | $/M |
+|---|---|---|
+| `fastino/gliner2-base-v1` | encoder | 0.15 |
+| `fastino/gliner2-large-v1` | encoder | 0.15 |
+| `fastino/gliner2-multi-v1` | encoder | 0.15 |
+| `fastino/gliner2-multi-large-v1` | encoder | 0.15 |
+| `fastino/Fastino-Nemotron-3.5-Lightning-Financial` | decoder | 0.50 |
+| `fastino/Fastino-Nemotron-3.5-Lightning-Healthcare` | decoder | 0.50 |
+| `nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16` | decoder | 0.50 |
+
+Two notes. There is no Gemma 4 on this account, so the bonus goes to GLiNER2.
+And `Fastino-Nemotron-3.5-Lightning-Financial` is a trainable decoder already
+pointed at the financial domain — corporate registries, filings, shareholdings —
+which is the obvious next specialist after the reader lands.
+
+Frontier decoders are on the same key (`gpt-5.6-luna`, `gpt-5.5`,
+`claude-sonnet-5`, `claude-opus-5`, `GLM-5.2`, `Kimi-K3`, `DeepSeek-V4-Flash`),
+which is why the benchmark routes its baseline through Pioneer too: the
+specialist and the model it replaces go through the same gateway, the same
+client and the same network, so the comparison is not rigged by plumbing.
+
+---
+
+## The gold set, as built
+
+`scripts/bench.py build` against live Cala: **15 subjects, 68 gold entities**,
+median prose length 1,026 characters.
+
+It also measured the thing that motivated the whole reader agent:
+
+```
+median Cala latency:  prose 26.3s   vs   typed rows 47.1s
+Chupa Chups:          prose  0.8s   vs   typed rows 28.1s
+```
+
+`datasets/bench_ownership.json` is committed, so the benchmark is reproducible
+without a Cala key.
+
+---
+
+## Status
+
+| | |
+|---|---|
+| Auth (`X-API-Key`) | ✅ verified against `/base-models` and `/felix/datasets` |
+| Model catalogue | ✅ read live |
+| Gold set | ✅ 15 cases built from Cala |
+| Inference (`/inference`, `/v1/chat/completions`) | ⛔ `403 payment_method_required` |
+
+Every inference endpoint on this account is billing-gated:
+
+```
+403  No usable payment method is on file.
+     Add a card at https://agent.pioneer.ai/billing
+```
+
+Nothing in the code is waiting on that — the client, the reader, the feedback
+loop, the training pipeline and the benchmark are all written and tested. The
+moment credits land:
+
+```bash
+python scripts/bench.py run --systems A,B      # frontier vs zero-shot GLiNER2
+python scripts/train_assay.py generate
+python scripts/train_assay.py train
+python scripts/bench.py run                    # all three
+```
+
+Until then the product runs unaffected: the assay falls back to a deterministic
+classifier and the reader contributes nothing, so the typed ladder carries the
+dig.
 
 ---
 
