@@ -581,9 +581,9 @@ const renderResult = (sample) => {
   const score = sample.score || {};
   const trail = (score.countries || []).join(' → ');
   scoreBox.innerHTML = `
-    <div><b>${score.hops_to_human ?? 0}</b><span>steps to<br>a person</span></div>
-    <div><b>${(score.countries || []).length}</b><span>countries<br>crossed</span></div>
-    <div class="${score.left_home ? 'hot' : ''}">
+    <div><b>${escapeHtml(score.hops_to_human ?? 0)}</b><span>steps to<br>a person</span></div>
+    <div><b>${escapeHtml((score.countries || []).length)}</b><span>countries<br>crossed</span></div>
+    <div class="${escapeHtml(score.left_home ? 'hot' : '')}">
       <b>${score.ends_in ? escapeHtml(COUNTRY[score.ends_in] || score.ends_in) : '—'}</b>
       <span>${trail ? escapeHtml(trail) : 'ends in'}</span></div>`;
 
