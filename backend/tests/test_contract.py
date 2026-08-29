@@ -106,23 +106,48 @@ def test_row_text_carries_the_columns_that_disambiguate():
 #  reader / extraction
 # --------------------------------------------------------------------------- #
 
-def test_extraction_parser_rejects_labels_it_does_not_know():
-    """A model returning something off-schema must yield nothing, never a guess."""
+# The two parsers below are pinned to shapes captured from the live API, not to
+# a guess at the contract:
+#
+#   classification  result.data.{task}   = {label, confidence}
+#   extraction      result.data.entities = {label: [{text, confidence, start, end}]}
+
+def test_extraction_parser_reads_the_measured_shape():
     from app.clients.pioneer import _parse_entities
-    out = _parse_entities({"result": {"entities": [
-        {"text": "Perfetti Van Melle", "label": "company", "score": 0.91},
-        {"text": "nonsense", "label": "wormhole", "score": 0.99},
-    ]}})
-    assert [e["text"] for e in out["entities"]] == ["Perfetti Van Melle"]
+    out = _parse_entities({"result": {"data": {"entities": {
+        "company": [{"text": "Henkell & Co.", "confidence": 0.94, "start": 30, "end": 43},
+                    {"text": "Nestlé S.A.", "confidence": 0.96, "start": 0, "end": 11}],
+        "family": [{"text": "Oetker family", "confidence": 0.91, "start": 60, "end": 73}],
+        "wormhole": [{"text": "nonsense", "confidence": 0.99}],
+    }}}})
+    # off-schema labels are dropped, and spans come back in document order
+    assert [e["text"] for e in out["entities"]] == [
+        "Nestlé S.A.", "Henkell & Co.", "Oetker family"]
 
 
 def test_extraction_parser_deduplicates():
     from app.clients.pioneer import _parse_entities
-    out = _parse_entities({"result": {"entities": [
-        {"text": "Oetker family", "label": "family", "score": 0.9},
-        {"text": "oetker family", "label": "family", "score": 0.8},
-    ]}})
+    out = _parse_entities({"result": {"data": {"entities": {"family": [
+        {"text": "Oetker family", "confidence": 0.9, "start": 0},
+        {"text": "oetker family", "confidence": 0.8, "start": 40},
+    ]}}}})
     assert len(out["entities"]) == 1
+
+
+def test_classification_parser_reads_the_measured_shape():
+    from app.clients.pioneer import _parse_inference
+    out = _parse_inference({"type": "encoder", "inference_id": "4f86e30a",
+        "result": {"data": {"entity_kind": {"label": "company", "confidence": 0.6723},
+                            "chain_terminates": {"label": "yes", "confidence": 0.817}}}})
+    assert out == {"kind": "company", "confidence": 0.67, "terminal": True}
+
+
+def test_parsers_return_nothing_rather_than_a_guess():
+    """An unrecognised body must fall back to the heuristic, never corrupt the chain."""
+    from app.clients.pioneer import _parse_entities, _parse_inference
+    assert _parse_inference({}) is None
+    assert _parse_inference({"result": {"data": {"entity_kind": {"label": "wormhole"}}}}) is None
+    assert _parse_entities({}) == {"entities": [], "classifications": {}}
 
 
 def test_bench_scoring_treats_a_longer_legal_name_as_a_hit():
