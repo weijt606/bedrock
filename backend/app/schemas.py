@@ -32,8 +32,10 @@ class SampleRequest(BaseModel):
 
     kind: InputKind = InputKind.text
     text: str | None = Field(None, max_length=400, description="Product or brand name, when kind=text")
-    image_b64: str | None = Field(None, description="Base64 image payload, when kind=image")
-    audio_b64: str | None = Field(None, description="Base64 audio payload, when kind=audio")
+    image_b64: str | None = Field(None, max_length=12_000_000,
+                                  description="Base64 image payload, when kind=image")
+    audio_b64: str | None = Field(None, max_length=12_000_000,
+                                  description="Base64 audio payload, when kind=audio")
     mime: str | None = Field(None, description="MIME type for image/audio payloads")
     depth: int = Field(4, ge=1, le=6, description="How many ownership hops to attempt")
     include: list[Literal["ownership", "supply", "statute", "flags", "siblings",
@@ -56,14 +58,18 @@ class SampleRequest(BaseModel):
 class TranscriptionRequest(BaseModel):
     """Audio-only request for the input UI before the user starts a dig."""
 
-    audio_b64: str = Field(description="Base64-encoded browser audio")
+    # Bounded: this is the only endpoint that accepts a large body from a
+    # browser, and an unbounded base64 field is read fully into memory.
+    audio_b64: str = Field(max_length=12_000_000,
+                           description="Base64-encoded browser audio, up to ~9 MB decoded")
     mime: str = Field("audio/webm", description="Audio MIME type")
 
 
 class ImageDescriptionRequest(BaseModel):
     """Image-only request for reading a visible product label with vision."""
 
-    image_b64: str = Field(description="Base64-encoded product image")
+    image_b64: str = Field(max_length=12_000_000,
+                           description="Base64-encoded product image, up to ~9 MB decoded")
     mime: str = Field("image/jpeg", description="Image MIME type")
 
 

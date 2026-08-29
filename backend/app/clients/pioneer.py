@@ -331,78 +331,78 @@ class PioneerClient:
 
 
 def _parse_inference(body: dict[str, Any]) -> dict[str, Any] | None:
-    """Pull our two classification tasks out of a Pioneer /inference response.
+    """Read a classification response. Measured shape:
 
-    The result array shape varies with the base model, so this reads defensively
-    and returns None rather than a wrong label — a None falls back to the
-    heuristic instead of corrupting the chain.
+        {"type": "encoder",
+         "inference_id": "4f86e30a-…",
+         "result": {"data": {"entity_kind":       {"label": "company", "confidence": 0.67},
+                             "chain_terminates":  {"label": "yes",     "confidence": 0.82}}},
+         "model_id": "fastino/gliner2-base-v1", "latency_ms": 271}
+
+    A task keyed dict, not a list. Returns None rather than a wrong label so an
+    unrecognised response falls back to the heuristic instead of corrupting the
+    chain.
     """
-    result = body.get("result") or body.get("results") or body
-    items: list[dict[str, Any]] = []
-    if isinstance(result, list):
-        items = [i for i in result if isinstance(i, dict)]
-    elif isinstance(result, dict):
-        for key in ("classifications", "classification", "labels"):
-            v = result.get(key)
-            if isinstance(v, list):
-                items = [i for i in v if isinstance(i, dict)]
-                break
-        else:
-            items = [result]
+    data = ((body.get("result") or {}).get("data")
+            if isinstance(body.get("result"), dict) else None)
+    if not isinstance(data, dict):
+        return None
 
-    kind, kind_conf, terminal = None, 0.0, None
-    for item in items:
-        task = str(item.get("task") or item.get("name") or item.get("type") or "").lower()
-        label = item.get("label") or item.get("value") or item.get("prediction")
-        score = item.get("confidence") or item.get("score") or item.get("probability")
-        if label is None:
-            continue
-        label = str(label).lower()
-        if task in ("entity_kind", "kind") or label in KINDS:
-            kind, kind_conf = label, float(score or 0.0)
-        elif task in ("chain_terminates", "terminates") or label in ("yes", "no"):
-            terminal = label == "yes"
+    def pick(task: str) -> tuple[str | None, float]:
+        v = data.get(task)
+        if isinstance(v, dict):
+            return (str(v.get("label")).lower() if v.get("label") else None,
+                    float(v.get("confidence") or 0.0))
+        if isinstance(v, str):
+            return v.lower(), 0.0
+        return None, 0.0
 
+    kind, conf = pick("entity_kind")
     if kind not in KINDS:
         return None
-    if terminal is None:
-        terminal = kind in ("person", "family", "foundation")
-    return {"kind": kind, "confidence": round(kind_conf or 0.5, 2), "terminal": bool(terminal)}
+    terminates, _ = pick("chain_terminates")
+    terminal = (terminates == "yes" if terminates in ("yes", "no")
+                else kind in ("person", "family", "foundation"))
+    return {"kind": kind, "confidence": round(conf or 0.5, 2), "terminal": bool(terminal)}
 
 
 def _parse_entities(body: dict[str, Any]) -> dict[str, Any]:
-    """Read a GLiNER2 extraction response defensively.
+    """Read an extraction response. Measured shape:
 
-    The result shape varies with the base model, so anything unrecognised comes
-    back as an empty list rather than a hallucinated entity.
+        {"result": {"data": {"entities": {"company": [{"text": "Nestlé S.A.",
+                                                       "confidence": 0.96,
+                                                       "start": 0, "end": 11}]}}}}
+
+    Entities come back keyed by label, classifications keyed by task name, side
+    by side under the same `data`. Anything unrecognised yields nothing rather
+    than a hallucinated span.
     """
-    result = body.get("result") or body.get("results") or body
+    data = ((body.get("result") or {}).get("data")
+            if isinstance(body.get("result"), dict) else None)
     ents: list[dict[str, Any]] = []
     cls: dict[str, str] = {}
+    if not isinstance(data, dict):
+        return {"entities": ents, "classifications": cls}
 
-    def take(items: Any) -> None:
-        if not isinstance(items, list):
-            return
-        for it in items:
-            if not isinstance(it, dict):
+    by_label = data.get("entities")
+    if isinstance(by_label, dict):
+        for label, spans in by_label.items():
+            if label not in OWNERSHIP_ENTITIES or not isinstance(spans, list):
                 continue
-            label = it.get("label") or it.get("entity") or it.get("type")
-            text = it.get("text") or it.get("span") or it.get("value")
-            task = it.get("task") or it.get("name")
-            if text and label in OWNERSHIP_ENTITIES:
-                ents.append({"text": str(text).strip(),
-                             "label": str(label),
-                             "score": float(it.get("score") or it.get("confidence") or 0.0)})
-            elif task and label:
-                cls[str(task)] = str(label)
+            for span in spans:
+                if not isinstance(span, dict):
+                    continue
+                text = str(span.get("text") or "").strip()
+                if text:
+                    ents.append({"text": text, "label": label,
+                                 "score": float(span.get("confidence") or 0.0),
+                                 "start": span.get("start"), "end": span.get("end")})
 
-    if isinstance(result, list):
-        take(result)
-    elif isinstance(result, dict):
-        take(result.get("entities"))
-        take(result.get("classifications"))
-        for key in ("spans", "predictions"):
-            take(result.get(key))
+    for task, v in data.items():
+        if task == "entities":
+            continue
+        if isinstance(v, dict) and v.get("label"):
+            cls[task] = str(v["label"])
 
     seen, uniq = set(), []
     for e in ents:
@@ -410,4 +410,5 @@ def _parse_entities(body: dict[str, Any]) -> dict[str, Any]:
         if k not in seen:
             seen.add(k)
             uniq.append(e)
+    uniq.sort(key=lambda e: (e["start"] if isinstance(e.get("start"), int) else 1 << 30))
     return {"entities": uniq, "classifications": cls}
