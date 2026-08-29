@@ -105,8 +105,8 @@ usually asleep.
 
 ## Aikido
 
-Connected to the repository, scanning the backend and the page. Two findings so
-far, both fixed:
+Connected to the repository, scanning the backend and the page. Three findings so
+far, all fixed:
 
 **A dependency advisory in starlette 0.41.3** (#22). Aikido's autofix pinned its
 own patched build, `0.41.3+aikido.7`, from a private index.
@@ -129,7 +129,14 @@ entirely. Now on `fastapi==0.141.1` with `starlette==1.6.0`, no private index,
 Worth saying plainly: **the finding was real and Aikido was right to raise it.**
 The autofix was the wrong shape for this repository, not the wrong call.
 
-**An XSS pattern in the renderer** (#25). Interpolated values in the result
+**An XSS pattern in the deck renderer** (#36). `card.kind` was interpolated into
+a `data-kind` attribute unescaped. Aikido rated it low confidence and was right
+to: `card.kind` is a literal the deck assigns itself — `bet`, `beat`, `verdict`,
+`silence` — never user input and never anything Cala returned, so there was no
+reachable exploit. Merged anyway. Escaping costs nothing, and the alternative is
+a renderer where you have to remember which of its inputs are trusted.
+
+**An XSS pattern in the result renderer** (#25). Interpolated values in the result
 markup are escaped. They happened to be numbers, but the habit is the point: the
 same template is one edit away from carrying a company name that came off the
 open web.
