@@ -250,6 +250,22 @@ class Coverage(BaseModel):
     source_count: int = 0
 
 
+class EditorialSample(BaseModel):
+    """The only thing the front end consumes.
+
+    The raw collections on CoreSample stay available for debugging and replay,
+    but they are not a presentation model: they carry duplicates, self
+    references, ingredients labelled as suppliers, and claims with no citation.
+    """
+
+    structure: StructureRoute = Field(default_factory=StructureRoute)
+    conduct: list[ConductPath] = Field(default_factory=list)
+    public_records: list[RecordCard] = Field(default_factory=list)
+    brands: list[BrandGroup] = Field(default_factory=list)
+    gaps: list[Gap] = Field(default_factory=list)
+    coverage: Coverage = Field(default_factory=Coverage)
+
+
 # --------------------------------------------------------------------------- #
 #  game surface
 # --------------------------------------------------------------------------- #
@@ -312,6 +328,8 @@ class CoreSample(BaseModel):
     gaps: list[Gap] = Field(default_factory=list)
     guesses: list[GuessPrompt] = Field(default_factory=list)
     score: Score = Field(default_factory=Score)
+    editorial: EditorialSample | None = Field(
+        None, description="The presentation model. The raw collections above are debug data.")
     meta: Meta
 
 

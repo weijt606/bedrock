@@ -170,6 +170,8 @@ interesting thing the product finds. Render it as a result:
     "gaps_count": 1
   },
 
+  "editorial": { /* EditorialSample — see below */ },
+
   "meta": {
     "sample_id": "9f21c0ab77e1",
     "queries_run": 5,
@@ -181,6 +183,37 @@ interesting thing the product finds. Render it as a result:
   }
 }
 ```
+
+### `editorial` is what the front end renders
+
+`layers`, `supply`, `statutes`, `flags`, `siblings` and `gaps` are **debug
+data**. They carry duplicates, self references, ingredients labelled as
+suppliers, and claims with no citation. Build the interface against
+`editorial` instead:
+
+```jsonc
+"editorial": {
+  "structure": { "status": "evidenced|partial|not_found",
+                 "chapters": [ /* OwnershipChapter */ ],
+                 "ending": { "kind": "family", "name": "Ferrero family" } },
+  "conduct":        [ /* ConductPath, at most 2, ordered by evidence */ ],
+  "public_records": [ /* RecordCard, at most 3 */ ],
+  "brands":         [ /* BrandGroup */ ],
+  "gaps":           [ /* Gap, with `attempts` */ ],
+  "coverage": { "searched": ["ownership"], "missing": ["supply"], "source_count": 4 }
+}
+```
+
+A filled, real instance is in [`docs/examples/editorial-nutella.json`](examples/editorial-nutella.json).
+
+**`status: "partial"` is the common case, not an error.** A route is only
+`evidenced` when every claim carries a public document URL, and ownership
+currently arrives through `knowledge/query`, which returns none. Design the
+partial state as carefully as the complete one.
+
+**Ordering is never by severity.** Conduct paths sort by evidence completeness,
+then impact recency, then source count. Bedrock reports what is filed; it does
+not rank companies.
 
 ### `answer` is withheld during the dig
 

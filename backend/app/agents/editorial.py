@@ -5,8 +5,10 @@ reader sees arrives inside an Evidence object produced by the enricher.
 """
 from __future__ import annotations
 
-from ..schemas import (ConductChapter, ConductPath, Ending, EntityKind, Evidence,
-                       Layer, OwnershipChapter, StructureRoute)
+from ..schemas import (BrandGroup, ConductChapter, ConductPath, Coverage,
+                       EditorialSample, Ending, EntityKind, Evidence, Layer,
+                       OwnershipChapter, RecordCard, StructureRoute)
+from .depuration import normalise_name
 
 
 def build_structure(layers: list[Layer],
@@ -94,3 +96,56 @@ def build_conduct(candidates: list[dict]) -> list[ConductPath]:
         return (0 if p.status == "evidenced" else 1, _recency_key(date), -sources)
 
     return sorted(paths, key=rank)
+
+
+# --------------------------------------------------------------------------- #
+#  assembly
+# --------------------------------------------------------------------------- #
+
+MAX_CONDUCT = 2
+MAX_RECORDS = 3
+
+
+def build_editorial(*, layers, supply, flags, gaps, siblings, subject_name,
+                    evidence_by_entity, conduct_candidates) -> EditorialSample:
+    """Fold the crew's findings into the presentation model.
+
+    Everything here selects, filters and counts. Anything a reader will see as a
+    sentence arrived as Evidence from the enricher.
+    """
+    structure = build_structure(layers, evidence_by_entity)
+    conduct = build_conduct(conduct_candidates)[:MAX_CONDUCT]
+
+    # Rule 4: a record needs a citable claim. A bare flag title is not one.
+    records = [
+        RecordCard(title=f.title, scope="brand", summary=f.summary,
+                   evidence=evidence_by_entity.get(f.title, []))
+        for f in flags
+        if any(e.is_citable for e in evidence_by_entity.get(f.title, []))
+    ][:MAX_RECORDS]
+
+    # Rule 2: drop a sibling whose normalised name equals the subject. A product
+    # listed among its own siblings reads as a bug to everyone who sees it.
+    subject_key = normalise_name(subject_name)
+    kin = [b for b in siblings if normalise_name(b) != subject_key]
+    owner = layers[-1].name if layers else subject_name
+    brands = [BrandGroup(owner=owner, count=len(kin), sample=kin[:12])] if kin else []
+
+    searched: list[str] = []
+    missing: list[str] = []
+    (searched if layers else missing).append("ownership")
+    (searched if supply else missing).append("supply")
+    (searched if records else missing).append("public_records")
+    (searched if kin else missing).append("brands")
+
+    source_count = len({
+        s.url for evs in evidence_by_entity.values() for e in evs
+        for s in e.sources if s.url
+    })
+
+    return EditorialSample(
+        structure=structure, conduct=conduct, public_records=records,
+        brands=brands, gaps=list(gaps),
+        coverage=Coverage(searched=searched, missing=missing,
+                          source_count=source_count),
+    )

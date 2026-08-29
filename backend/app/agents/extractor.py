@@ -13,6 +13,7 @@ import time
 
 from ..schemas import (CoreSample, Flag, Gap, GuessPrompt, Layer, Meta, Score,
                        Statute, Subject, SupplyNode)
+from .editorial import build_editorial
 
 COUNTRY_NAMES = {
     "ES": "Spain", "NL": "Netherlands", "LU": "Luxembourg", "DE": "Germany",
@@ -30,7 +31,9 @@ class ExtractorAgent:
               layers: list[Layer], supply: list[SupplyNode], statutes: list[Statute],
               flags: list[Flag], siblings: list[str], gaps: list[Gap],
               queries_run: int, cache_hits: int, agents: list[str],
-              models: dict[str, str]) -> CoreSample:
+              models: dict[str, str],
+              evidence_by_entity: dict | None = None,
+              conduct_candidates: list | None = None) -> CoreSample:
 
         origin = _origin(subject, layers)
         countries: list[str] = []
@@ -73,8 +76,16 @@ class ExtractorAgent:
             ))
 
         now = time.time()
+        editorial = build_editorial(
+            layers=layers, supply=supply, flags=flags, gaps=gaps,
+            siblings=siblings, subject_name=subject.resolved_name,
+            evidence_by_entity=evidence_by_entity or {},
+            conduct_candidates=conduct_candidates or [],
+        )
+
         return CoreSample(
             subject=subject,
+            editorial=editorial,
             layers=layers,
             supply=supply,
             statutes=statutes,
