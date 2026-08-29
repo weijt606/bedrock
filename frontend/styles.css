@@ -473,6 +473,16 @@ body.is-loading .skeleton-screen { opacity: 1; }
   font-variant-numeric:tabular-nums; }
 .pc-say { font-size:1rem; line-height:1.55; color:var(--ink-soft); max-width:40ch; }
 
+/* The reveal card carries one word, so that word has to hold the card the way
+   .pc-figure holds a number. Same weight and colour, sized and wrapped for a
+   country name rather than two digits. */
+.pc-answer { font-family:var(--sans); font-weight:900; color:var(--red);
+  font-size:clamp(2.6rem,1.4rem + 5.4vw,5.4rem); line-height:.92;
+  letter-spacing:-.045em; max-width:14ch; text-wrap:balance; }
+/* What the reader committed to, quoted back at them. Mono, because it is the
+   one line on the card that is about them and not about the company. */
+.pc-said { font:500 .78rem/1.4 var(--mono); letter-spacing:.02em; color:var(--red); }
+
 .pc-chips { display:flex; flex-wrap:wrap; gap:.55rem; justify-content:center; }
 .pc-chip { font:500 .95rem var(--sans); padding:.7rem 1.5rem; border:1px solid var(--line);
   border-radius:2rem; background:var(--paper-warm); color:var(--ink); cursor:pointer;

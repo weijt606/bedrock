@@ -27,6 +27,20 @@ Three pre-built prompts arrive on `done`, but you can render them from the
 `still_domestic` is the cruellest and the best: it is binary, it is always
 askable, and most people say Yes.
 
+**Answer on the very next card.** A wager the deck settles eight cards later is
+a quiz; a wager settled immediately is a position the player has just lost. So
+every question is followed by the card that answers it:
+
+| Question | Answered by |
+|---|---|
+| the two chain wagers | a `reveal` card — what they said, then what it is |
+| a `concern` wager | the `concern` beat, which was always going to answer it |
+| `siblings_count` | the count itself, counting up |
+
+The findings after a reveal stop being a slow march to a punchline and become
+the evidence for one the player already took. What they committed to is quoted
+back on the answering card, so being wrong is stated rather than left to memory.
+
 ## 2. Dig — from `probe`, `layer`, `gap`
 
 - `probe` → print the query **verbatim** and start a seconds counter. Showing the
@@ -119,6 +133,10 @@ Then reveal. It is usually not the one on the packet.
 Deliberately not on the server — it belongs to the player, not the sample.
 Suggested: +1 per correct guess, and a running "wrong" count that is the real
 message. Most people are wrong most of the time; the tally is the argument.
+
+The end-of-deck tally is a recap, not a reveal — every line in it was already
+shown on the card that answered it. It is there to total the losses, which is a
+different job from landing them.
 
 ## What the game must never do
 
