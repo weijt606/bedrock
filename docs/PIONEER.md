@@ -213,6 +213,26 @@ dig.
 
 ---
 
+## Still to probe: `relations`
+
+Pioneer's docs say a schema may carry `entities`, `classifications`,
+`structures` and `relations` — but only the first two are specified. `relations`
+is the one we want most: Bedrock extracts *ownership relations*, not just spans,
+and a model that returns
+
+```
+(Freixenet) --owned_by--> (Henkell & Co. Sektkellerei KG)
+```
+
+hands us the chain directly instead of a bag of names to re-link afterwards.
+
+Rather than guess at an undocumented shape, `scripts/probe_schema.py` tries six
+candidate shapes against the live API and reports which one it accepts, dumping
+a full response for each. One run, a handful of tiny calls. Same method that
+mapped Cala's undocumented behaviour.
+
+---
+
 ## Commands
 
 ```bash
@@ -225,6 +245,7 @@ python scripts/train_assay.py models      # what the account can serve
 
 python scripts/bench.py build             # gold set from Cala
 python scripts/bench.py run               # frontier vs zero-shot vs specialist
+python scripts/probe_schema.py            # what does the schema field really accept?
 ```
 
 Then in `.env`:
