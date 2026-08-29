@@ -136,6 +136,16 @@ class Settings:
     def has_pioneer(self) -> bool:
         return bool(self.pioneer_key)
 
+    # --- fal video: an illustrative loop, never a carrier of facts ---------
+    # No default model on purpose: pick one in the fal playground and check the
+    # result by eye before wiring it, because an ugly loop is worse than none.
+    fal_video_model: str = os.environ.get("FAL_VIDEO_MODEL", "")
+    fal_video_seconds: int = int(os.environ.get("FAL_VIDEO_SECONDS", "6"))
+
+    @property
+    def has_video(self) -> bool:
+        return bool(self.fal_key and self.fal_video_model)
+
     @property
     def has_fal(self) -> bool:
         return bool(self.fal_key)

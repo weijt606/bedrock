@@ -23,15 +23,25 @@ import time
 import uuid
 from typing import Any, AsyncIterator
 
+from .agents.depuration import resolve_row_type
+from .clients.falvideo import build_prompt
 from .agents import (AuditorAgent, EnricherAgent, ExtractorAgent, IntakeAgent,
                      ProspectorAgent, ReaderAgent, RecorderAgent, StatuteAgent,
                      SurveyorAgent)
 from .agents.editorial import build_conduct, build_structure
-from .clients import CalaClient, FalClient, LLMClient, PioneerClient
+from .clients import (CalaClient, FalClient, FalVideoClient, LLMClient,
+                      PioneerClient)
 from .config import settings
 from .schemas import (ConcernReport, CoreSample, EditorialRoutes, EventType,
                       Flag, Gap, Layer, SampleRequest, Statute, StreamEvent,
                       Subject, SupplyNode)
+
+
+# request ids by sample, so /media can be polled after the stream closes.
+VIDEO_JOBS: dict[str, str] = {}
+
+# Only a shape hint for the camera. Not a claim about the product.
+_FORM = {"product": "product", "company": "package", "organization": "package"}
 
 
 class Orchestrator:
@@ -40,6 +50,7 @@ class Orchestrator:
         self.llm = LLMClient()
         self.pioneer = PioneerClient()
         self.fal = FalClient()
+        self.video = FalVideoClient()
         self.intake = IntakeAgent(self.cala, self.llm, self.fal)
         self.reader = ReaderAgent(self.cala, self.pioneer)
         self.prospector = ProspectorAgent(self.cala, self.pioneer)
@@ -51,8 +62,43 @@ class Orchestrator:
         self.extractor = ExtractorAgent()
 
     async def aclose(self) -> None:
-        for c in (self.cala, self.llm, self.pioneer, self.fal):
+        for c in (self.cala, self.llm, self.pioneer, self.fal, self.video):
             await c.aclose()
+
+
+    async def _submit_video(self, req: SampleRequest, subject: Subject,
+                            supply: list[SupplyNode], emit) -> None:
+        """Queue the illustrative loop. Never awaited by the dig.
+
+        The prompt is one fixed template; only the *materials* come from data,
+        and only from supply rows the depuration step typed as an ingredient —
+        so the loop is filled with things Cala actually returned rather than
+        anything a model imagined. No claim, number or location goes near it.
+
+        A photograph takes the image-to-video route and keeps the reader's own
+        packaging. Without one we go text-to-video and describe material and
+        light only: inventing a branded packshot is the visual equivalent of
+        inventing a fact.
+        """
+        if not self.video.ready:
+            return
+        motifs = [n.name for n in supply
+                  if resolve_row_type({"ingredient": n.name} if n.role == "ingredient"
+                                      else {"supplier": n.name}) == "ingredient"]
+        if not motifs:
+            motifs = [n.name for n in supply if (n.role or "").lower() == "ingredient"]
+        form = _FORM.get((subject.entity_type or "").lower(), None)
+
+        image_url = None
+        if req.kind.value == "image" and req.image_b64:
+            image_url = await self.video.upload(req.image_b64, req.mime or "image/jpeg")
+
+        prompt = build_prompt(motifs, form, bool(image_url))
+        rid = await self.video.submit(prompt, image_url)
+        if rid:
+            VIDEO_JOBS[self._sid] = rid
+            await emit("media", {"status": "pending",
+                                 "route": "image-to-video" if image_url else "text-to-video"})
 
     async def _editorial(self, subject: str, layers: list[Layer],
                          concerns: list[ConcernReport], emit) -> EditorialRoutes | None:
@@ -103,6 +149,7 @@ class Orchestrator:
     async def run(self, req: SampleRequest,
                   sample_id: str | None = None) -> AsyncIterator[StreamEvent]:
         sid = sample_id or uuid.uuid4().hex[:12]
+        self._sid = sid
         started = time.time()
         seq = 0
         queue: asyncio.Queue[tuple[str, dict[str, Any], str | None]] = asyncio.Queue()
@@ -208,6 +255,9 @@ class Orchestrator:
                 name, lambda k, p: emit(k, p, self.surveyor.name), plan.get("supply"))
             supply.extend(ns)
             gaps.extend(gs)
+            # Queued, never awaited. The loop takes 30-120s and the dig does not
+            # wait for it; if it is late the interface simply never shows it.
+            asyncio.create_task(self._submit_video(req, subject, list(supply), emit))
 
         async def dig_statute() -> None:
             if "statute" not in req.include:

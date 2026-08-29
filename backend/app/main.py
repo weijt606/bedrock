@@ -27,7 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from . import cache
 from .clients.packshot import PackshotClient
 from .config import settings
-from .orchestrator import Orchestrator
+from .orchestrator import VIDEO_JOBS, Orchestrator
 from .schemas import CoreSample, ImageDescriptionRequest, SampleRequest, StreamEvent, TranscriptionRequest
 
 app = FastAPI(
@@ -62,6 +62,21 @@ _pending: dict[str, SampleRequest] = {}
 async def _shutdown() -> None:
     await _orc.aclose()
     await _shots.aclose()
+
+
+@app.get("/v1/samples/{sample_id}/media")
+async def sample_media(sample_id: str) -> dict:
+    """The illustrative loop, when there is one.
+
+    Separate from the sample on purpose: generated media is not evidence and
+    must never delay `editorial` or `done`. The interface polls this and shows
+    a card only once it says `ready`; every other answer means show nothing.
+    """
+    rid = VIDEO_JOBS.get(sample_id)
+    if not rid:
+        return {"status": "unavailable", "url": None}
+    status, url = await _orc.video.poll(rid)
+    return {"status": status, "url": url}
 
 
 @app.get("/v1/health", tags=["meta"])

@@ -466,3 +466,8 @@ body.is-loading .skeleton-screen { opacity: 1; }
 /* The hidden attribute must win over any display rule above, or the flat
    collections the deck replaces keep showing underneath it. */
 [hidden] { display:none !important; }
+
+/* The loop. Illustrative, never evidence — which is why the label above it says
+   so, and why no figure or source ever sits inside the frame. */
+.pc-video { width:min(38rem,100%); border-radius:.75rem; display:block;
+  background:var(--paper-warm); aspect-ratio:16/9; object-fit:cover; }
