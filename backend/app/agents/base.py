@@ -22,7 +22,7 @@ def source_of(res: CalaResult) -> Source:
 
 
 def first_name(row: dict[str, Any]) -> str:
-    for k in ("owner", "ultimate_owner", "shareholder", "name", "brand", "manufacturer",
+    for k in ("owner", "ultimate_owner", "shareholder", "name", "brand", "manufacturer", "ingredient",
               "empresa", "factory_group"):
         v = row.get(k)
         if isinstance(v, str) and v.strip():

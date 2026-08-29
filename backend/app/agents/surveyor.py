@@ -31,7 +31,8 @@ class SurveyorAgent:
             [f"{subject}.manufactured_by",
              f"Who manufactures {subject}?",
              f"Which company physically makes {subject}?"],
-            [f"{subject}.ingredients",
+            [f"{subject}.ingredients.return(ingredient, origin_country, supplier)",
+             f"{subject}.ingredients",
              f"{subject}.raw_material_origin",
              f"What are {subject} made of and where do the ingredients come from?"],
         ]
@@ -50,7 +51,8 @@ class SurveyorAgent:
                 node = SupplyNode(
                     name=first_name(row),
                     role=row.get("category") or row.get("role") or row.get("producto_categoria"),
-                    country=row.get("country") or row.get("location"),
+                    country=(row.get("origin_country") or row.get("country")
+                             or row.get("location")),
                     detail=row.get("description") or row.get("details")
                     or row.get("datos_relevantes") or row.get("products"),
                     source=src,

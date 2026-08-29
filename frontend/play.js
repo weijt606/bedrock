@@ -152,6 +152,50 @@
     return cards;
   }
 
+  // The documented route is deliberately assembled from the presentation
+  // contract, not the raw flags or supply rows. A product only earns this door
+  // when the extractor found the complete product -> commercial -> impact
+  // chain with citable evidence.
+  const citeEvidence = (evidence) => {
+    const sources = (evidence || []).flatMap((e) => e.sources || []);
+    const urls = [...new Map(sources.filter((s) => s.url).map((s) => [s.url, s])).values()];
+    if (urls.length) return '<p class="pc-cite">' + urls.slice(0, 3).map((s) => (
+      '<a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">'
+      + esc(s.publisher || publisherOf(s.url)) + '</a>'
+    )).join('') + '</p>';
+    const query = sources.find((s) => s.query);
+    return query ? '<p class="pc-cite"><span>' + esc(query.query) + '</span></p>' : '';
+  };
+
+  function buildConduct(sample) {
+    const path = ((sample.editorial || {}).conduct || []).find((candidate) => {
+      const roles = new Set((candidate.chapters || []).map((chapter) => chapter.role));
+      return candidate.status === 'evidenced'
+        && roles.has('product_link') && roles.has('commercial_link')
+        && roles.has('documented_impact');
+    });
+    if (!path) return [];
+
+    const labels = {
+      product_link: 'What is inside',
+      commercial_link: 'The commercial link',
+      documented_impact: 'What is documented',
+      response: 'What happened after',
+    };
+    return path.chapters.map((chapter) => {
+      const figure = splitFigure(chapter.claim);
+      const head = figure
+        ? '<p class="pc-figure">' + esc(figure.figure) + '</p>'
+          + '<h2 class="pc-head pc-head--under">' + esc(figure.rest) + '</h2>'
+        : '<h2 class="pc-head">' + esc(chapter.claim) + '</h2>';
+      return {
+        kind: 'conduct', role: chapter.role,
+        html: '<p class="pc-eyebrow">' + esc(labels[chapter.role] || 'On the record') + '</p>'
+          + head + citeEvidence(chapter.evidence),
+      };
+    });
+  }
+
   /* The loop is illustrative and carries no facts, so it is appended rather
    * than built in: if fal is slow, unconfigured or fails, the deck is simply
    * one card shorter and nothing else changes. */
@@ -168,17 +212,35 @@
   }
 
   function mount(root, sample) {
-    const cards = build(sample);
+    const ownershipCards = build(sample);
+    const conductCards = buildConduct(sample);
+    const routeCard = {
+      kind: 'route',
+      html: '<p class="pc-eyebrow">Choose a trace</p>'
+        + '<h2 class="pc-head">There are two ways beneath this product.</h2>'
+        + '<div class="pc-chips" role="group" aria-label="Trace to explore">'
+        + '<button class="pc-chip" type="button" data-route-choice="conduct">What is documented</button>'
+        + '<button class="pc-chip" type="button" data-route-choice="ownership">Who is behind it</button>'
+        + '</div><p class="pc-say">One follows the public record. The other follows ownership.</p>',
+    };
+    let cards = conductCards.length ? [routeCard] : ownershipCards;
     const picks = {};
     let i = 0;
 
     root.innerHTML = '<div class="pc" id="pcStage"></div>'
       + '<p class="pc-trail" id="pcTrail" aria-hidden="true"></p>'
-      + '<div class="pc-spine" id="pcSpine">'
-      + cards.map(() => '<i></i>').join('') + '</div>';
+      + '<div class="pc-spine" id="pcSpine"></div>';
     const stage = root.querySelector('#pcStage');
     const trail = root.querySelector('#pcTrail');
-    const pips = [].slice.call(root.querySelector('#pcSpine').children);
+    const spine = root.querySelector('#pcSpine');
+    let pips = [];
+    const setCards = (next) => {
+      cards = next;
+      i = 0;
+      spine.innerHTML = cards.map(() => '<i></i>').join('');
+      pips = [].slice.call(spine.children);
+    };
+    setCards(cards);
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     // The trail is the one number the reader is meant to feel: every border the
@@ -276,6 +338,12 @@
         show(i + 1);
       }));
 
+      stage.querySelectorAll('[data-route-choice]').forEach((b) => b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setCards(b.dataset.routeChoice === 'conduct' ? conductCards : ownershipCards);
+        show(0);
+      }));
+
       // Four phrasings, typed one at a time, and only then the zero. The point
       // of this card is that we asked repeatedly — printing the list all at once
       // reads as "not found", which is the opposite of what it means.
@@ -311,7 +379,7 @@
         }, 120 + n2 * 55));
       }
 
-      root.dataset.gate = (card.kind === 'bet' || card.kind === 'wager'
+      root.dataset.gate = (card.kind === 'bet' || card.kind === 'wager' || card.kind === 'route'
         || card.kind === 'verdict') ? 'true' : 'false';
     }
 
@@ -330,15 +398,13 @@
 
     const sid = (sample.meta || {}).sample_id;
     pollMedia(sid, (url) => {
-      if (cards.some((c) => c.kind === 'media')) return;
-      cards.splice(cards.length - 1, 0, {
+      if (ownershipCards.some((c) => c.kind === 'media')) return;
+      ownershipCards.splice(ownershipCards.length - 1, 0, {
         kind: 'media',
         html: '<p class="pc-eyebrow">Illustrative only. No fact was given to the model.</p>'
           + '<video class="pc-video" src="' + esc(url) + '" autoplay loop muted playsinline></video>',
       });
-      const pip = document.createElement('i');
-      root.querySelector('#pcSpine').appendChild(pip);
-      pips.push(pip);
+      if (cards === ownershipCards) setCards(ownershipCards);
     }, 40);
 
     show(0);

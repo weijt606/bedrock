@@ -34,9 +34,9 @@ from .clients import (CalaClient, FalClient, FalVideoClient, LLMClient,
 from .clients.packshot import PackshotClient
 from . import media
 from .config import settings
-from .schemas import (ConcernReport, CoreSample, EditorialRoutes, EventType,
-                      Flag, Gap, Layer, SampleRequest, Statute, StreamEvent,
-                      Subject, SupplyNode)
+from .schemas import (Concern, ConcernReport, CoreSample, EditorialRoutes,
+                      EventType, Evidence, Flag, Gap, Layer, SampleRequest,
+                      Statute, StreamEvent, Subject, SupplyNode)
 
 
 # request ids by sample, so /media can be polled after the stream closes.
@@ -135,7 +135,8 @@ class Orchestrator:
                                  "route": "image-to-video" if image_url else "text-to-video"})
 
     async def _editorial(self, subject: str, layers: list[Layer],
-                         concerns: list[ConcernReport], emit) -> EditorialRoutes | None:
+                         supply: list[SupplyNode], concerns: list[ConcernReport],
+                         emit) -> EditorialRoutes | None:
         """Build the two routes, asking knowledge/search for citable evidence.
 
         One enrichment question per entity in the chain, fired together. Each is a
@@ -176,6 +177,30 @@ class Orchestrator:
                     "scope": "supply_chain" if about != subject else "brand",
                     "chapters": chapters,
                 })
+
+        # A conduct route needs more than a flag against a parent: it needs a
+        # cited bridge from this product, through a material and origin, to the
+        # documented record. The material and origin come from Cala's supply
+        # rows. We never guess either, and if Cala cannot support every link the
+        # route simply is not offered.
+        if any(report.concern == Concern.child_labour for report in concerns):
+            owner = next((layer.name for layer in layers if layer.kind.value == "company"), None)
+            for node in [n for n in supply if n.country][:4]:
+                if not owner:
+                    break
+                country = _country_name(node.country)
+                if not country or node.name == "unknown":
+                    continue
+                product_q = f"Where does {subject} source {node.name} from?"
+                record_q = ("What child labor issues have been documented in "
+                            f"{owner} {node.name} supply chain in {country}?")
+                await emit("probe", {"query": product_q, "agent": self.enricher.name})
+                product = await self.enricher.evidence_for(product_q, "product")
+                await emit("probe", {"query": record_q, "agent": self.enricher.name})
+                record = await self.enricher.evidence_for(record_q, "supply_chain")
+                candidate = _conduct_candidate(subject, node.name, product, record)
+                if candidate is not None:
+                    candidates.append(candidate)
 
         return EditorialRoutes(structure=build_structure(layers, by_entity),
                                conduct=build_conduct(candidates))
@@ -231,7 +256,6 @@ class Orchestrator:
         prose_layers: list[Layer] = []
         concerns: list[ConcernReport] = []
         origin_holder: list[str] = []
-        editorial_holder: list[EditorialRoutes] = []
 
         async def read_prose() -> None:
             """The fast path. Cala answers `knowledge/search` in about a second
@@ -259,15 +283,6 @@ class Orchestrator:
                 concerns.extend(await self.auditor.run(
                     name, names, req.concerns,
                     lambda k, p: emit(k, p, self.auditor.name)))
-
-            # The editorial routes need the chain and the records, so they run
-            # once both are in rather than racing them. The enricher is the only
-            # thing that can move a route from `partial` to `evidenced`: it asks
-            # knowledge/search, which is the sole endpoint that returns a URL.
-            if "editorial" in req.include and ls:
-                nonlocal_editorial = await self._editorial(name, ls, concerns, emit)
-                if nonlocal_editorial is not None:
-                    editorial_holder.append(nonlocal_editorial)
 
             if "siblings" in req.include and ls:
                 owner = next((l.name for l in reversed(ls) if l.kind.value == "company"), ls[-1].name)
@@ -355,6 +370,14 @@ class Orchestrator:
         except Exception as exc:  # noqa: BLE001
             yield frame("error", {"message": str(exc)[:200]})
 
+        # Editorial assembly waits for both the ownership and supply branches.
+        # It is deliberately after the fan-out: a conduct path may use a country
+        # returned by the ingredient query, so building it inside `dig_chain`
+        # would race an incomplete supply list.
+        editorial = None
+        if "editorial" in req.include and layers:
+            editorial = await self._editorial(name, layers, supply, concerns, emit)
+
         while not queue.empty():
             kind, payload, agent = queue.get_nowait()
             yield frame(kind, payload, agent)
@@ -362,7 +385,6 @@ class Orchestrator:
         # ---- 4. extract --------------------------------------------------- #
         if not layers and prose_layers:
             layers = prose_layers
-        editorial = editorial_holder[0] if editorial_holder else None
         sources = [l.source for l in layers] + [s.source for s in supply] \
             + [s.source for s in statutes] + [f.source for f in flags]
         sample = self.extractor.build(
@@ -399,3 +421,44 @@ _TOPIC = {
     "environment": "environment", "deforestation": "environment",
     "animal_welfare": "health", "tax": "regulatory", "governance": "regulatory",
 }
+
+_COUNTRY_NAMES = {
+    "TR": "Turkey", "IT": "Italy", "CL": "Chile", "US": "United States",
+    "ID": "Indonesia", "MY": "Malaysia", "BR": "Brazil", "GH": "Ghana",
+    "CI": "Côte d'Ivoire", "NG": "Nigeria", "IN": "India", "CN": "China",
+}
+
+
+def _country_name(value: str | None) -> str | None:
+    if not value:
+        return None
+    value = value.strip()
+    return _COUNTRY_NAMES.get(value.upper(), value)
+
+
+def _conduct_candidate(subject: str, ingredient: str, product: list[Evidence],
+                       record: list[Evidence]) -> dict[str, object] | None:
+    """Select a cited conduct path without writing or paraphrasing a claim.
+
+    The role classifier is intentionally lexical and conservative. It only
+    places Cala's original claim in a chapter; uncertain output returns no
+    route rather than treating an allegation as a product finding.
+    """
+    product_link = next((e for e in product if ingredient.lower() in e.claim.lower()), None)
+    impact_words = ("child labor", "child labour", "children working", "child workers")
+    response_words = ("partnered", "partnership", "programme", "program", "project",
+                      "remediation", "eliminate")
+    impact = next((e for e in record if any(word in e.claim.lower() for word in impact_words)), None)
+    response = next((e for e in record if any(word in e.claim.lower() for word in response_words)), None)
+    commercial = next((e for e in record if e is not impact and e is not response), None)
+    if not (product_link and commercial and impact):
+        return None
+    chapters: list[dict[str, object]] = [
+        {"role": "product_link", "evidence": [product_link]},
+        {"role": "commercial_link", "evidence": [commercial]},
+        {"role": "documented_impact", "evidence": [impact]},
+    ]
+    if response:
+        chapters.append({"role": "response", "evidence": [response]})
+    return {"id": f"{subject}-{ingredient}-child-labour".lower().replace(" ", "-"),
+            "topic": "labor", "scope": "supply_chain", "chapters": chapters}

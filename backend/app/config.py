@@ -7,19 +7,22 @@ from pathlib import Path
 
 
 def _load_local_env() -> None:
-    """Load developer-only values from the repository `.env` file.
+    """Load developer-only values from repository `.env` files.
 
-    Deployed environments keep precedence, and `.env` stays ignored by git.
+    Deployed environments keep precedence. `.env.local` is the developer-local
+    override used by the front-end project; `.env` remains supported for the
+    documented quick-start path. Both stay ignored by git.
     """
-    env_file = Path(__file__).resolve().parents[2] / ".env"
-    if not env_file.is_file():
-        return
-    for line in env_file.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    root = Path(__file__).resolve().parents[2]
+    for env_file in (root / ".env.local", root / ".env"):
+        if not env_file.is_file():
             continue
-        key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
 _load_local_env()

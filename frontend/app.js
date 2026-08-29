@@ -431,9 +431,18 @@ form.addEventListener('submit', async (event) => {
     resetResponse();
     let payload;
     if (subject.value.trim()) {
-      payload = { kind: 'text', text: subject.value.trim(), depth: 4 };
+      // The documented route starts with one concrete, auditable concern. The
+      // result renderer only offers it when the extractor can build an evidence
+      // chain; an empty or partial record never becomes a dramatic card.
+      payload = {
+        kind: 'text', text: subject.value.trim(), depth: 4,
+        concerns: ['child_labour'],
+      };
     } else if (selectedPhoto) {
-      payload = { kind: 'image', image_b64: await toBase64(selectedPhoto), mime: selectedPhoto.type, depth: 4 };
+      payload = {
+        kind: 'image', image_b64: await toBase64(selectedPhoto), mime: selectedPhoto.type,
+        depth: 4, concerns: ['child_labour'],
+      };
     } else {
       subject.focus();
       showNotice('Start with a food, product, brand, voice note or photo.');
