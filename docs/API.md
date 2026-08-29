@@ -15,8 +15,8 @@ cd backend && ./.venv/bin/uvicorn app.main:app --port 8000
 #  http://localhost:8000/docs   this contract, live
 ```
 
-`frontend/` is the reference implementation of everything below — if a frame is
-ambiguous here, look at how the page renders it.
+`demo/index.html` is the reference implementation of everything below — if a
+frame is ambiguous here, look at how the demo renders it.
 
 ---
 
@@ -44,13 +44,7 @@ seconds and the whole experience is watching it happen.
   "audio_b64": "...",        // when kind=audio  (spoken product name)
   "mime": "image/jpeg",
   "depth": 4,                // 1..6 ownership hops
-  "include": ["ownership", "supply", "statute", "flags", "siblings", "concerns"],
-
-  // What the person actually cares about. Each one is checked against every
-  // entity the dig finds — the brand, every company up the chain, every known
-  // supplier — not just the name on the packet.
-  "concerns": ["child_labour", "forced_labour", "environment", "deforestation",
-               "labour_rights", "tax", "governance", "animal_welfare"]
+  "include": ["ownership", "supply", "statute", "flags", "siblings"]
 }
 ```
 
@@ -90,55 +84,22 @@ data: {"type":"layer","sample_id":"9f21…","seq":7,"at":32.6,"agent":"prospecto
 | `supply` | `SupplyNode` | A manufacturer landed |
 | `statute` | `Statute` | A regulation landed |
 | `flag` | `Flag` | A public record landed |
-| `concern` | `ConcernReport` | One stated concern resolved across the whole chain |
 | `gap` | `{query, reason, latency_s}` | **A question with no answer.** Render it, do not hide it — see below |
 | `siblings` | `{items, owner, latency_s}` | Other brands under the same owner |
 | `score` | `Score` | Running totals |
 | `done` | `CoreSample` | The whole thing. Switch to the verdict screen |
 | `error` | `{message}` | Only for input we could not read at all |
 
-### Gaps are content, but only once they are corroborated
+### Gaps are content, not errors
 
-Cala answers a **phrasing**, not an intent. Measured on the live API:
-
-```
-Estrella Damm.barley_supplier        ->  0 rows
-Estrella Damm.raw_material_origin    ->  4 rows   (barley malt, rice, hops, water)
-
-Chupa Chups.raw_material_origin      ->  0 rows
-Chupa Chups.ingredients              ->  5 rows
-"What are Chupa Chups made of, and
- where do the ingredients come from?" -> 23 rows
-```
-
-So a single empty answer is not evidence about the world — it means we guessed
-the wrong key. Agents now ask each question several ways and only report a gap
-when every phrasing stays empty. `attempts` carries the phrasings that failed:
-
-```jsonc
-{ "query": "Estrella Damm.barley_supplier",
-  "reason": "no_rows",
-  "attempts": ["Estrella Damm.barley_supplier",
-               "Estrella Damm.raw_material_origin",
-               "What is the barley supplier of Estrella Damm?"],
-  "latency_s": 29.0 }
-```
-
-**Render `attempts`.** It is what turns "we did not find it" into "nobody has
-written it down", and it is the difference between a claim a judge can break by
-rephrasing and one they cannot:
+`reason` is one of `no_rows`, `too_complex`, `error`. A `no_rows` gap means
+nobody has published that fact anywhere Cala can read — which is the most
+interesting thing the product finds. Render it as a result:
 
 ```
-> Estrella Damm.barley_supplier          rows = 0
-> Estrella Damm.raw_material_origin      rows = 0
-> What is the barley supplier of …?      rows = 0
-  ─────────────────────────────────────────────
-  asked three ways. nobody has published it.
+> Estrella Damm.barley_supplier
+  rows = 0
 ```
-
-`reason` is one of `no_rows`, `too_complex`, `error`, `rate_limited`. **Only
-`no_rows` is a finding.** The other three are our failure, not the record's, and
-must never be rendered as silence.
 
 ---
 
@@ -187,41 +148,7 @@ must never be rendered as silence.
                   "parties": "Independent designers vs Shein", "source": {…} } ],
   "siblings": ["Mentos", "Trident", "Smint", "…"],
 
-  "gaps": [ { "query": "Estrella Damm.barley_supplier", "reason": "no_rows", "latency_s": 29.0,
-              "attempts": ["Estrella Damm.barley_supplier",
-                           "Estrella Damm.raw_material_origin",
-                           "What is the barley supplier of Estrella Damm?"] } ],
-
-  // one report per concern the caller asked for
-  "concerns": [
-    { "concern": "child_labour",
-      "status": "found",                       // found | clear | unchecked
-      "entities_checked": ["Nespresso", "Nestlé", "Vanguard Capital Management LLC"],
-      "queries": ["Which companies have been accused of using child labour…", "…"],
-      "flags": [
-        { "kind": "report",
-          "title": "Nestlé appears on: Which companies have been accused of using child labour in their supply chains",
-          "concern": "child_labour",
-          "about": "Nestlé",                   // ← the PARENT, not the brand
-          "source": {…} }
-      ] }
-  ],
-
-  // narrative beats, in telling order, each weighted
-  "story": [
-    { "kind": "origin",   "headline": "Chupa Chups",
-      "detail": "An iconic lollipop brand founded in 1958 by Enric Bernat…",
-      "weight": 0.30, "entities": ["Chupa Chups"], "at_step": 0 },
-    { "kind": "border",   "headline": "At step 2 the trail leaves Spain for Luxembourg.",
-      "weight": 0.60, "entities": ["Perfetti Van Melle", "C+F Confectionery and Foods S.A."],
-      "at_step": 1, "source": {…} },
-    { "kind": "terminus", "headline": "It ends at an address: 10, Rue Henri M. Schnadt, L-2530 Luxembourg.",
-      "detail": "3 steps from the thing in your hand.", "weight": 0.90, "source": {…} },
-    { "kind": "concern",  "headline": "Nestlé — 1 step above the label — has a child labour record.",
-      "weight": 1.00, "entities": ["Nestlé"], "at_step": 1, "source": {…} },
-    { "kind": "silence",  "headline": "And then it goes quiet.",
-      "detail": "Estrella Damm.barley_supplier → rows = 0", "weight": 0.70 }
-  ],
+  "gaps": [ { "query": "Estrella Damm.barley_supplier", "reason": "no_rows", "latency_s": 29.0 } ],
 
   "guesses": [                       // ask these BEFORE revealing the layers
     { "id": "ends_in_country", "question": "Which country does the ownership end in?",
@@ -243,6 +170,8 @@ must never be rendered as silence.
     "gaps_count": 1
   },
 
+  "editorial": { /* EditorialSample — see below */ },
+
   "meta": {
     "sample_id": "9f21c0ab77e1",
     "queries_run": 5,
@@ -255,29 +184,36 @@ must never be rendered as silence.
 }
 ```
 
-### `status: "clear"` is not a clean bill of health
+### `editorial` is what the front end renders
 
-`clear` means **we asked and the public record is empty**. For a small private
-supplier that is the normal state of affairs, not an endorsement. Never render it
-as a green tick meaning "ethical" — say what it is: nothing filed.
+`layers`, `supply`, `statutes`, `flags`, `siblings` and `gaps` are **debug
+data**. They carry duplicates, self references, ingredients labelled as
+suppliers, and claims with no citation. Build the interface against
+`editorial` instead:
 
-`ConcernReport.queries` carries exactly what was asked, so the UI can show it.
+```jsonc
+"editorial": {
+  "structure": { "status": "evidenced|partial|not_found",
+                 "chapters": [ /* OwnershipChapter */ ],
+                 "ending": { "kind": "family", "name": "Ferrero family" } },
+  "conduct":        [ /* ConductPath, at most 2, ordered by evidence */ ],
+  "public_records": [ /* RecordCard, at most 3 */ ],
+  "brands":         [ /* BrandGroup */ ],
+  "gaps":           [ /* Gap, with `attempts` */ ],
+  "coverage": { "searched": ["ownership"], "missing": ["supply"], "source_count": 4 }
+}
+```
 
-### `story` — the beats, and what to do with them
+A filled, real instance is in [`docs/examples/editorial-nutella.json`](examples/editorial-nutella.json).
 
-`headline` is a sentence with values dropped into it. **No language model wrote
-any of it**, which is why it is safe to render verbatim next to a real company's
-name.
+**`status: "partial"` is the common case, not an error.** A route is only
+`evidenced` when every claim carries a public document URL, and ownership
+currently arrives through `knowledge/query`, which returns none. Design the
+partial state as carefully as the complete one.
 
-`weight` (0–1) is derived from the facts and decides emphasis. Sort by it and
-take three and you have the short version; render in array order and you have the
-long one. The array is already in telling order:
-
-`origin → handover/border → terminus → scale → convergence → concern → silence`
-
-The heaviest beat is usually `concern` with an `about` that is **not** the brand
-— a record filed against a company four steps above the label is the thing a
-shopper cannot reach on their own, and it is why the ownership dig exists.
+**Ordering is never by severity.** Conduct paths sort by evidence completeness,
+then impact recency, then source count. Bedrock reports what is filed; it does
+not rank companies.
 
 ### `answer` is withheld during the dig
 
@@ -292,7 +228,7 @@ compare once `done` arrives. Nothing on the stream spoils the answer early.
 | | |
 |---|---|
 | `GET /v1/health` | Which providers are wired up, which classifier is live, how many answers are cached |
-| `POST /v1/samples:sync` | Blocking, returns a `CoreSample`. Tests and cache warming only — never a live demo |
+| `POST /v1/samples:sync` | Blocking, returns a `CoreSample`. Tests and cache warming only — never a demo |
 
 ### Warming the cache before a demo
 

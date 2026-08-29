@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import time
 
-from ..schemas import (Beat, BeatKind, ConcernReport, CoreSample, Flag, Gap,
-                       GuessPrompt, Layer, Meta, Score, Statute, Subject,
-                       SupplyNode)
+from .editorial import build_editorial
+from ..schemas import (Beat, BeatKind, ConcernReport, CoreSample, EditorialRoutes,
+                       Flag, Gap, GuessPrompt, Layer, Meta, Score, Statute,
+                       Subject, SupplyNode)
 
 COUNTRY_NAMES = {
     "ES": "Spain", "NL": "Netherlands", "LU": "Luxembourg", "DE": "Germany",
@@ -31,6 +32,7 @@ class ExtractorAgent:
               layers: list[Layer], supply: list[SupplyNode], statutes: list[Statute],
               flags: list[Flag], siblings: list[str], gaps: list[Gap],
               concerns: list[ConcernReport] | None = None,
+              editorial: EditorialRoutes | None = None,
               queries_run: int, cache_hits: int, agents: list[str],
               models: dict[str, str]) -> CoreSample:
 
@@ -82,6 +84,7 @@ class ExtractorAgent:
             statutes=statutes,
             flags=flags,
             concerns=concerns or [],
+            editorial=editorial,
             siblings=siblings,
             gaps=gaps,
             story=build_story(subject, layers, score, siblings, gaps,

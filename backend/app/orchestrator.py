@@ -23,12 +23,15 @@ import time
 import uuid
 from typing import Any, AsyncIterator
 
-from .agents import (AuditorAgent, ExtractorAgent, IntakeAgent, ProspectorAgent,
-                     ReaderAgent, RecorderAgent, StatuteAgent, SurveyorAgent)
+from .agents import (AuditorAgent, EnricherAgent, ExtractorAgent, IntakeAgent,
+                     ProspectorAgent, ReaderAgent, RecorderAgent, StatuteAgent,
+                     SurveyorAgent)
+from .agents.editorial import build_conduct, build_structure
 from .clients import CalaClient, FalClient, LLMClient, PioneerClient
 from .config import settings
-from .schemas import (ConcernReport, CoreSample, EventType, Flag, Gap, Layer,
-                      SampleRequest, Statute, StreamEvent, Subject, SupplyNode)
+from .schemas import (ConcernReport, CoreSample, EditorialRoutes, EventType,
+                      Flag, Gap, Layer, SampleRequest, Statute, StreamEvent,
+                      Subject, SupplyNode)
 
 
 class Orchestrator:
@@ -44,11 +47,58 @@ class Orchestrator:
         self.statute = StatuteAgent(self.cala)
         self.recorder = RecorderAgent(self.cala)
         self.auditor = AuditorAgent(self.cala)
+        self.enricher = EnricherAgent(self.cala)
         self.extractor = ExtractorAgent()
 
     async def aclose(self) -> None:
         for c in (self.cala, self.llm, self.pioneer, self.fal):
             await c.aclose()
+
+    async def _editorial(self, subject: str, layers: list[Layer],
+                         concerns: list[ConcernReport], emit) -> EditorialRoutes | None:
+        """Build the two routes, asking knowledge/search for citable evidence.
+
+        One enrichment question per entity in the chain, fired together. Each is a
+        cold Cala call the first time anybody asks it and about half a second
+        after that, so this costs one round of latency rather than one per hop.
+        """
+        names = [l.name for l in layers]
+        questions = [f"Who owns {n}?" for n in names]
+        for q in questions:
+            await emit("probe", {"query": q, "agent": self.enricher.name})
+        got = await asyncio.gather(
+            *(self.enricher.evidence_for(q, "parent") for q in questions),
+            return_exceptions=True)
+        by_entity = {n: (e if isinstance(e, list) else []) for n, e in zip(names, got)}
+
+        # A conduct candidate needs a documented bridge between the product and
+        # whatever is on the record - that is `commercial_link`, and without it a
+        # parent's lawsuit would be attributed to a product it may have nothing to
+        # do with. The ownership chain is that bridge, so it is only offered where
+        # the enricher actually found a citation for it.
+        candidates = []
+        for report in concerns:
+            for i, flag in enumerate(report.flags):
+                about = flag.about or subject
+                bridge = by_entity.get(about, [])
+                chapters = []
+                if bridge:
+                    chapters.append({"role": "commercial_link", "evidence": bridge[:1]})
+                impact = await self.enricher.evidence_for(
+                    f"{flag.title}", "supply_chain")
+                if impact:
+                    chapters.append({"role": "documented_impact", "evidence": impact[:2]})
+                if not chapters:
+                    continue
+                candidates.append({
+                    "id": f"{report.concern.value}-{i}",
+                    "topic": _TOPIC.get(report.concern.value, "legal"),
+                    "scope": "supply_chain" if about != subject else "brand",
+                    "chapters": chapters,
+                })
+
+        return EditorialRoutes(structure=build_structure(layers, by_entity),
+                               conduct=build_conduct(candidates))
 
     async def run(self, req: SampleRequest,
                   sample_id: str | None = None) -> AsyncIterator[StreamEvent]:
@@ -99,6 +149,7 @@ class Orchestrator:
         siblings: list[str] = []
         prose_layers: list[Layer] = []
         concerns: list[ConcernReport] = []
+        editorial_holder: list[EditorialRoutes] = []
 
         async def read_prose() -> None:
             """The fast path. Cala answers `knowledge/search` in about a second
@@ -126,6 +177,15 @@ class Orchestrator:
                 concerns.extend(await self.auditor.run(
                     name, names, req.concerns,
                     lambda k, p: emit(k, p, self.auditor.name)))
+
+            # The editorial routes need the chain and the records, so they run
+            # once both are in rather than racing them. The enricher is the only
+            # thing that can move a route from `partial` to `evidenced`: it asks
+            # knowledge/search, which is the sole endpoint that returns a URL.
+            if "editorial" in req.include and ls:
+                nonlocal_editorial = await self._editorial(name, ls, concerns, emit)
+                if nonlocal_editorial is not None:
+                    editorial_holder.append(nonlocal_editorial)
 
             if "siblings" in req.include and ls:
                 owner = next((l.name for l in reversed(ls) if l.kind.value == "company"), ls[-1].name)
@@ -196,12 +256,13 @@ class Orchestrator:
         # ---- 4. extract --------------------------------------------------- #
         if not layers and prose_layers:
             layers = prose_layers
+        editorial = editorial_holder[0] if editorial_holder else None
         sources = [l.source for l in layers] + [s.source for s in supply] \
             + [s.source for s in statutes] + [f.source for f in flags]
         sample = self.extractor.build(
             sample_id=sid, started_at=started, subject=subject, layers=layers,
             supply=supply, statutes=statutes, flags=flags, concerns=concerns,
-            siblings=siblings, gaps=gaps,
+            editorial=editorial, siblings=siblings, gaps=gaps,
             queries_run=len(sources) + len(gaps),
             cache_hits=sum(1 for s in sources if s.cached),
             agents=["intake", "reader", "prospector", "surveyor", "statute",
@@ -217,5 +278,17 @@ class Orchestrator:
                 "facts": "cala/knowledge",
             },
         )
+        if editorial is not None:
+            yield frame("editorial", editorial.model_dump(mode="json"), "enricher")
         yield frame("score", sample.score.model_dump(mode="json"), "extractor")
         yield frame("done", sample.model_dump(mode="json"), "extractor")
+
+
+# Concern names map to the topics the conduct route understands. Both vocabularies
+# are deliberate: `Concern` is what a person says they care about, `topic` is how
+# the record is filed.
+_TOPIC = {
+    "child_labour": "labor", "forced_labour": "labor", "labour_rights": "labor",
+    "environment": "environment", "deforestation": "environment",
+    "animal_welfare": "health", "tax": "regulatory", "governance": "regulatory",
+}

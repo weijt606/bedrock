@@ -39,7 +39,7 @@ class SampleRequest(BaseModel):
     mime: str | None = Field(None, description="MIME type for image/audio payloads")
     depth: int = Field(4, ge=1, le=6, description="How many ownership hops to attempt")
     include: list[Literal["ownership", "supply", "statute", "flags", "siblings",
-                          "concerns"]] = Field(
+                          "concerns", "editorial"]] = Field(
         default_factory=lambda: ["ownership", "supply", "statute", "flags", "siblings"]
     )
     concerns: list[Concern] = Field(
@@ -402,6 +402,41 @@ class Score(BaseModel):
     gaps_count: int = 0
 
 
+class EditorialSample(BaseModel):
+    """The only thing the front end consumes.
+
+    The raw collections on CoreSample stay available for debugging and replay,
+    but they are not a presentation model: they carry duplicates, self
+    references, ingredients labelled as suppliers, and claims with no citation.
+    """
+
+    structure: StructureRoute = Field(default_factory=StructureRoute)
+    conduct: list[ConductPath] = Field(default_factory=list)
+    public_records: list[RecordCard] = Field(default_factory=list)
+    brands: list[BrandGroup] = Field(default_factory=list)
+    gaps: list[Gap] = Field(default_factory=list)
+    coverage: Coverage = Field(default_factory=Coverage)
+
+
+class EditorialRoutes(BaseModel):
+    """The two doors into a product, each labelled with how well it is evidenced.
+
+    `story[]` narrates and `editorial` vouches. They answer the same question with
+    different guarantees: a beat is templated from any sourced value, while a
+    route is `evidenced` only when every claim carries a URL a reader can open.
+    A front end can lead with the story and lean on the routes to say how much
+    weight it deserves.
+    """
+
+    structure: StructureRoute = Field(
+        default_factory=StructureRoute,
+        description="Who owns the thing, chapter by chapter")
+    conduct: list[ConductPath] = Field(
+        default_factory=list,
+        description="What is on the record, ranked by completeness — never by "
+                    "how bad we think it is")
+
+
 class Subject(BaseModel):
     raw_input: str
     resolved_name: str
@@ -440,6 +475,12 @@ class CoreSample(BaseModel):
         default_factory=list, description="Other brands under the same ultimate owner"
     )
     gaps: list[Gap] = Field(default_factory=list)
+    editorial: EditorialRoutes | None = Field(
+        None,
+        description="Present when `include` carries \"editorial\". `status` is "
+                    "`partial` far more often than it is `evidenced`, because "
+                    "ownership arrives from an endpoint that returns no document "
+                    "URLs — render partial as carefully as success.")
     story: list[Beat] = Field(
         default_factory=list,
         description="Narrative beats in telling order, each with a weight. "
@@ -465,6 +506,7 @@ class EventType(str, Enum):
     statute = "statute"            # a regulation landed
     flag = "flag"                  # a public record landed
     concern = "concern"            # one concern resolved across the chain
+    editorial = "editorial"        # the structure and conduct routes
     gap = "gap"                    # a query came back empty
     siblings = "siblings"          # sibling brands landed
     score = "score"                # running score update
