@@ -17,6 +17,8 @@ Read this before changing a probe.
 | Entity nodes carry no edges — the graph only exists at `knowledge/query` | you cannot traverse; you must ask |
 | Law entities have no incoming edges | you cannot go product → statute, only ask directly |
 | Conceptual questions match company *names* | ask narrow, concrete questions |
+| Asking Cala to **characterise** fails; asking it to **enumerate** works | see the phrasing table below |
+| The same query can return different columns on different calls | the cache freezes the first good answer, which is one more reason it is not just an optimisation |
 | Over-broad questions return `{"error": "This question is too complex…"}` | `CalaClient` surfaces this as `too_complex`; ask something smaller, never retry the same string |
 | Per-property `sources` on `retrieve_entity`; `explainability` fact ids on `knowledge/search` | both are collected into `Source` |
 
@@ -48,6 +50,60 @@ That unevenness is a finding, not a bug.
 Regulations governing the label. Must ask by number or by a concrete question;
 "Protected Designation of Origin" as a query returns companies with "Origin" in
 their name.
+
+### `auditor`
+
+The compliance layer, and the reason the ownership dig is worth doing.
+
+The person states what they care about — `child_labour`, `forced_labour`,
+`environment`, `deforestation`, `labour_rights`, `tax`, `governance`,
+`animal_welfare` — and each concern is checked against **every entity the dig
+found**, not just the brand. Measured on Nespresso:
+
+```
+CONCERN child_labour   found   flags=2
+          [Nestlé]     appears on the child-labour list      ← the parent
+          [Nespresso]  accused of child labour: yes
+CONCERN forced_labour  found   flags=1
+CONCERN environment    clear   flags=0
+```
+
+The first flag is filed one step above the brand. That is the finding a shopper
+cannot reach alone.
+
+**One list query per concern, not one per entity.** Cala answers *"which
+companies have been accused of child labour?"* with 30 rows, so the auditor asks
+that once and intersects with the chain it already holds. One call instead of N,
+and the list questions are identical for everyone — the first person to care
+about child labour warms that answer for every player after them.
+
+**Phrasing, measured.** Cala refuses to characterise and is happy to enumerate:
+
+| Asked | Result |
+|---|---|
+| `What labour rights violations has Inditex been accused of?` | `too_complex` / timeout |
+| `{e}.labour_disputes` | rows |
+| `What environmental fines has Nestle received?` | 2 rows |
+| `{e}.environmental_violations` | 6 rows with incident, location, year, fine_amount |
+| `Which companies fall under the EU CSDDD?` | 0 rows — no useful coverage |
+| `Which companies are on the UFLPA Entity List for forced labour?` | 41 rows |
+| `Which multinational companies have been investigated for tax avoidance in Luxembourg?` | 22 rows with investigation_type and outcome |
+
+So direct probes are dotted paths wherever one exists, and narrow yes/no
+questions where one does not.
+
+**Two rules that are not stylistic.**
+
+1. Bedrock reports what is *filed* and never scores a company. "X appears on the
+   UFLPA Entity List" is a sourced fact; "X is unethical" is an opinion and is
+   defamatory if wrong.
+2. An explicit *no* is an answer, not a finding. Cala frequently replies
+   `{"accused_of_child_labour": "no"}` — filing that as a flag would convert a
+   denial into an accusation, so `_verdict` drops it.
+
+`status` is three-valued and the middle one gets misread: `clear` means we asked
+and the record is empty, which for a small private supplier is the normal state
+of affairs, not an endorsement.
 
 ### `recorder`
 Litigation and sanctions, **as filed**. Rows carry `source` fact ids. Never
@@ -123,8 +179,16 @@ so the dig continues and the next hop resolves it. Ending a chain early is the
 expensive mistake, so the fallback is built to never make it.
 
 ### `extractor`
-Folds everything into one `CoreSample` and computes the derived numbers the game
-plays with. Adds no facts.
+Folds everything into one `CoreSample`, computes the derived numbers the game
+plays with, and assembles `story[]` — narrative beats in telling order, each with
+a `weight` derived from the facts and the `source` behind it.
+
+Every headline is a sentence with Cala's values dropped into it. **No model
+writes prose about a real company**, which is what makes the beats safe to render
+verbatim. The heaviest beat is normally a `concern` whose `about` is not the
+brand.
+
+Adds no facts.
 
 ## Adding an agent
 

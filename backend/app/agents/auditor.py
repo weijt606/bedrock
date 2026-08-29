@@ -65,14 +65,24 @@ LIST_QUERY: dict[Concern, str] = {
         "Which companies have faced legal action over animal welfare?",
 }
 
+# Phrasing matters more than it should. Measured against the live API:
+#
+#   "What labour rights violations has Inditex been accused of?"  -> too_complex
+#   "{e}.environmental_violations"                                -> 6 rows with
+#       incident, location, year, fine_amount, description
+#   "What environmental fines has Nestle received?"               -> 2 rows
+#
+# Cala rejects a question that asks it to characterise, and answers a dotted path
+# that asks it to enumerate. So the direct probes are dotted paths wherever a
+# dotted path exists, and narrow yes/no questions where one does not.
 DIRECT_QUERY: dict[Concern, str] = {
     Concern.child_labour: "Has {e} been accused of child labour in its supply chain?",
     Concern.forced_labour: "Has {e} been linked to forced labour?",
-    Concern.environment: "What environmental fines has {e} received?",
+    Concern.environment: "{e}.environmental_violations",
     Concern.deforestation: "Has {e} been linked to deforestation?",
-    Concern.labour_rights: "What labour rights violations has {e} been accused of?",
+    Concern.labour_rights: "{e}.labour_disputes",
     Concern.tax: "Has {e} been investigated for tax avoidance?",
-    Concern.governance: "What regulatory actions has {e} faced?",
+    Concern.governance: "{e}.regulatory_actions",
     Concern.animal_welfare: "Has {e} faced legal action over animal welfare?",
 }
 
@@ -171,8 +181,7 @@ class AuditorAgent:
                     kind=_KIND.get(concern, "report"),  # type: ignore[arg-type]
                     title=title[:200],
                     parties=row.get("parties"),
-                    summary=row.get("description") or row.get("summary")
-                    or row.get("details"),
+                    summary=_context(row),
                     concern=concern,
                     about=row.get("name") if isinstance(row.get("name"), str) else brand,
                     source=src,
@@ -209,9 +218,14 @@ def _verdict(row: dict[str, Any]) -> tuple[bool, bool, str | None]:
     return False, False, None
 
 
+_TITLE_KEYS = ("incident", "title", "case", "violation", "violation_type",
+               "investigation_type", "action", "policy", "policy_name",
+               "description", "summary")
+
+
 def _title(row: dict[str, Any]) -> str | None:
     """A row is only worth surfacing if it says something beyond the entity name."""
-    for k in ("title", "case", "violation", "action", "description", "summary"):
+    for k in _TITLE_KEYS:
         v = row.get(k)
         if isinstance(v, str) and len(v.strip()) > 8:
             return v.strip()
@@ -219,3 +233,28 @@ def _title(row: dict[str, Any]) -> str | None:
     if isinstance(name, str) and isinstance(desc, str) and len(desc) > 8:
         return f"{name} — {desc}"
     return None
+
+
+def _context(row: dict[str, Any]) -> str | None:
+    """Fines, dates and places, when Cala returned them as their own columns.
+
+        {"incident": "Nestlé Waters — Illegal Water Drilling", "location": "France",
+         "year": 2024, "fine_amount": "2 million", "fine_currency": "EUR"}
+
+    becomes "France · 2024 · 2 million EUR". Values are copied, never computed.
+    """
+    bits: list[str] = []
+    for k in ("location", "country", "year", "date", "investigation_opened"):
+        v = row.get(k)
+        if v not in (None, ""):
+            bits.append(str(v))
+    amount = row.get("fine_amount") or row.get("amount") or row.get("fine")
+    if amount not in (None, ""):
+        cur = row.get("fine_currency") or row.get("currency") or ""
+        bits.append(f"{amount} {cur}".strip())
+    for k in ("outcome", "reason", "details", "description"):
+        v = row.get(k)
+        if isinstance(v, str) and len(v) > 8 and v != _title(row):
+            bits.append(v)
+            break
+    return " · ".join(bits) if bits else None
