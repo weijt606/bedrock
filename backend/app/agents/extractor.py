@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import time
 
+from .editorial import build_editorial
 from ..schemas import (Beat, BeatKind, ConcernReport, CoreSample, EditorialRoutes,
                        Flag, Gap, GuessPrompt, Layer, Meta, Score, Statute,
                        Subject, SupplyNode)
