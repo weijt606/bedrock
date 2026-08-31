@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "01M1BXSK48DY17QS0Q5PR0T08H",
+  "strategy": "manual-commit",
+  "branch": "security/strip-fal-key",
+  "checkpoints_count": 8,
+  "files_touched": [
+    ".env.example"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 230,
+    "cache_creation_tokens": 1486324,
+    "cache_read_tokens": 41893591,
+    "output_tokens": 132969,
+    "api_call_count": 115
+  }
+}
