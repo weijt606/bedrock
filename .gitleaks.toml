@@ -1,0 +1,39 @@
+# Secret patterns for the providers this repository actually uses, on top of
+# the gitleaks defaults.
+#
+# Scoped to the commits a pull request introduces, never to history: a rotated
+# key from before this gate existed is still in the history of this repo, and
+# scanning history would fail every build forever without protecting anything.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "fal-key"
+description = "fal API key (<uuid>:<32 hex>)"
+regex = '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{32}'''
+keywords = ["fal"]
+
+[[rules]]
+id = "cala-key"
+description = "Cala API key"
+regex = '''\bclsk[A-Za-z0-9_\-]{20,}'''
+keywords = ["clsk"]
+
+[[rules]]
+id = "pioneer-key"
+description = "Pioneer API key"
+regex = '''\bpio_[A-Za-z0-9_\-]{20,}'''
+keywords = ["pio_"]
+
+[[rules]]
+id = "index-credential"
+description = "Package index URL carrying an inline credential"
+regex = '''https?://[^/\s:@]+:[^/\s@]{8,}@'''
+keywords = ["://"]
+
+[allowlist]
+description = "Files that legitimately carry key-shaped example text"
+paths = [
+  '''\.gitleaks\.toml$''',
+]
