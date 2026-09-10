@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "01M261161XTKPDA658B9K2ZZQC",
+  "strategy": "manual-commit",
+  "branch": "security/secret-scan-gate",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    ".gitleaks.toml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 1018785,
+    "cache_read_tokens": 10159281,
+    "output_tokens": 20528,
+    "api_call_count": 22
+  }
+}
